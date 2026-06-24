@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,17 +21,29 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.remka.domain.Vehicle
@@ -63,6 +76,7 @@ private fun RemkaTheme(content: @Composable () -> Unit) {
 
 @Composable
 private fun RemkaApp() {
+    var screen by remember { mutableStateOf(RemkaScreen.VehicleList) }
     val vehicles = remember {
         mutableStateListOf(
             Vehicle(
@@ -78,6 +92,32 @@ private fun RemkaApp() {
         )
     }
 
+    when (screen) {
+        RemkaScreen.VehicleList -> VehicleListScreen(
+            vehicles = vehicles,
+            onAddVehicleClick = { screen = RemkaScreen.AddVehicle }
+        )
+
+        RemkaScreen.AddVehicle -> AddVehicleScreen(
+            onBack = { screen = RemkaScreen.VehicleList },
+            onSave = { vehicle ->
+                vehicles.add(vehicle)
+                screen = RemkaScreen.VehicleList
+            }
+        )
+    }
+}
+
+private enum class RemkaScreen {
+    VehicleList,
+    AddVehicle
+}
+
+@Composable
+private fun VehicleListScreen(
+    vehicles: List<Vehicle>,
+    onAddVehicleClick: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -102,20 +142,7 @@ private fun RemkaApp() {
             }
 
             Button(
-                onClick = {
-                    vehicles.add(
-                        Vehicle(
-                            id = UUID.randomUUID().toString(),
-                            type = VehicleType.CAR,
-                            name = "Новая машина",
-                            manufacturer = "Toyota",
-                            model = "Corolla",
-                            year = 2012,
-                            registrationNumber = null,
-                            currentMileage = 180000
-                        )
-                    )
-                }
+                onClick = onAddVehicleClick
             ) {
                 Text("Добавить")
             }
@@ -128,6 +155,182 @@ private fun RemkaApp() {
         ) {
             items(vehicles, key = { vehicle -> vehicle.id }) { vehicle ->
                 VehicleCard(vehicle = vehicle)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddVehicleScreen(
+    onBack: () -> Unit,
+    onSave: (Vehicle) -> Unit
+) {
+    var type by remember { mutableStateOf(VehicleType.MOTORCYCLE) }
+    var name by remember { mutableStateOf("") }
+    var manufacturer by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf("") }
+    var registrationNumber by remember { mutableStateOf("") }
+    var mileage by remember { mutableStateOf("") }
+    var typeMenuExpanded by remember { mutableStateOf(false) }
+
+    val canSave = name.isNotBlank()
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Новый транспорт",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = "Заполни основные данные",
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                OutlinedButton(onClick = onBack) {
+                    Text("Назад")
+                }
+            }
+        }
+
+        item {
+            ExposedDropdownMenuBox(
+                expanded = typeMenuExpanded,
+                onExpandedChange = { typeMenuExpanded = !typeMenuExpanded }
+            ) {
+                OutlinedTextField(
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                        .fillMaxWidth(),
+                    value = type.displayName(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Тип") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuExpanded)
+                    }
+                )
+
+                ExposedDropdownMenu(
+                    expanded = typeMenuExpanded,
+                    onDismissRequest = { typeMenuExpanded = false }
+                ) {
+                    VehicleType.entries.forEach { vehicleType ->
+                        DropdownMenuItem(
+                            text = { Text(vehicleType.displayName()) },
+                            onClick = {
+                                type = vehicleType
+                                typeMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Название") },
+                singleLine = true,
+                supportingText = {
+                    if (!canSave) {
+                        Text("Обязательное поле")
+                    }
+                }
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = manufacturer,
+                onValueChange = { manufacturer = it },
+                label = { Text("Производитель") },
+                singleLine = true
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = model,
+                onValueChange = { model = it },
+                label = { Text("Модель") },
+                singleLine = true
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = year,
+                onValueChange = { year = it.onlyDigits() },
+                label = { Text("Год") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = registrationNumber,
+                onValueChange = { registrationNumber = it },
+                label = { Text("Госномер") },
+                singleLine = true
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = mileage,
+                onValueChange = { mileage = it.onlyDigits() },
+                label = { Text("Пробег") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        }
+
+        item {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = canSave,
+                onClick = {
+                    onSave(
+                        Vehicle(
+                            id = UUID.randomUUID().toString(),
+                            type = type,
+                            name = name.trim(),
+                            manufacturer = manufacturer.trim().ifBlank { null },
+                            model = model.trim().ifBlank { null },
+                            year = year.toIntOrNull(),
+                            registrationNumber = registrationNumber.trim().ifBlank { null },
+                            currentMileage = mileage.toLongOrNull()
+                        )
+                    )
+                }
+            ) {
+                Text("Сохранить")
             }
         }
     }
@@ -183,6 +386,20 @@ private fun VehicleCard(vehicle: Vehicle) {
         }
     }
 }
+
+private fun VehicleType.displayName(): String =
+    when (this) {
+        VehicleType.MOTORCYCLE -> "Мотоцикл"
+        VehicleType.CAR -> "Машина"
+        VehicleType.SCOOTER -> "Скутер"
+        VehicleType.BICYCLE -> "Велосипед"
+        VehicleType.ATV -> "Квадроцикл"
+        VehicleType.BOAT -> "Лодка"
+        VehicleType.OTHER -> "Другое"
+    }
+
+private fun String.onlyDigits(): String =
+    filter { char -> char.isDigit() }
 
 @Composable
 private fun VehicleIcon(type: VehicleType) {
