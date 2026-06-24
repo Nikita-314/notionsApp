@@ -35,6 +35,7 @@ tasks.test {
 
 tasks.named<JavaExec>("run") {
     standardInput = System.`in`
+    systemProperty("remka.data.file", System.getProperty("remka.data.file") ?: "remka-data.json")
     jvmArgs(
         "-Dfile.encoding=UTF-8",
         "-Dsun.stdout.encoding=UTF-8",

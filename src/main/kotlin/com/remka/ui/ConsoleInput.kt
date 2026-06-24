@@ -1,6 +1,9 @@
 package com.remka.ui
 
 import com.remka.data.IdGenerator
+import com.remka.domain.Attachment
+import com.remka.domain.AttachmentOwnerType
+import com.remka.domain.AttachmentType
 import com.remka.domain.EventParticipant
 import com.remka.domain.MaintenancePlan
 import com.remka.domain.Vehicle
@@ -67,6 +70,37 @@ fun readVehicleEvent(idGenerator: IdGenerator, vehicleId: String): VehicleEvent 
     )
 }
 
+fun readAttachments(
+    idGenerator: IdGenerator,
+    ownerType: AttachmentOwnerType,
+    ownerId: String
+): List<Attachment> {
+    val attachments = mutableListOf<Attachment>()
+
+    while (true) {
+        print("Путь к фото/чеку/документу (пусто - закончить): ")
+        val path = readln().trim()
+
+        if (path.isBlank()) {
+            return attachments
+        }
+
+        val type = readAttachmentType()
+        val comment = readOptionalText("Комментарий к вложению")
+
+        attachments.add(
+            Attachment(
+                id = idGenerator.nextAttachmentId(),
+                ownerType = ownerType,
+                ownerId = ownerId,
+                type = type,
+                path = path,
+                comment = comment
+            )
+        )
+    }
+}
+
 fun readMaintenancePlan(idGenerator: IdGenerator, vehicleId: String): MaintenancePlan {
     println("Добавление плана")
 
@@ -89,6 +123,25 @@ fun readMaintenancePlan(idGenerator: IdGenerator, vehicleId: String): Maintenanc
         responsiblePerson = responsiblePerson,
         comment = comment
     )
+}
+
+private fun readAttachmentType(): AttachmentType {
+    while (true) {
+        println("Тип вложения:")
+        println("1. Фото")
+        println("2. Чек")
+        println("3. Документ")
+        println("4. Другое")
+        print("Выбери номер: ")
+
+        when (readln().trim()) {
+            "1" -> return AttachmentType.PHOTO
+            "2" -> return AttachmentType.RECEIPT
+            "3" -> return AttachmentType.DOCUMENT
+            "4" -> return AttachmentType.OTHER
+            else -> println("Не понял выбор. Попробуй ещё раз.")
+        }
+    }
 }
 
 private fun readVehicleType(): VehicleType {

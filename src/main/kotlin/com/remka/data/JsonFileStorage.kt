@@ -9,7 +9,7 @@ import kotlin.io.path.readText
 import kotlin.io.path.writeText
 
 class JsonFileStorage(
-    private val path: Path = Path.of("remka-data.json")
+    private val path: Path = Path.of(System.getProperty("remka.data.file") ?: "remka-data.json")
 ) {
     private val json = Json {
         prettyPrint = true
@@ -37,4 +37,6 @@ class JsonFileStorage(
 
         path.writeText(json.encodeToString(snapshot))
     }
+
+    fun displayPath(): String = path.toString()
 }

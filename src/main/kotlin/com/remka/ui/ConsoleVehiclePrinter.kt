@@ -1,6 +1,8 @@
 package com.remka.ui
 
 import com.remka.data.RemkaRepository
+import com.remka.domain.Attachment
+import com.remka.domain.AttachmentOwnerType
 import com.remka.domain.Vehicle
 
 fun printVehicleList(vehicles: List<Vehicle>) {
@@ -56,6 +58,8 @@ fun printVehicleCard(repository: RemkaRepository, vehicleId: String) {
                 println("  - ${participant.name}: ${participant.workDescription ?: "работа не описана"}")
             }
         }
+
+        printAttachments(repository.getAttachments(AttachmentOwnerType.EVENT, event.id))
     }
 
     println()
@@ -72,5 +76,18 @@ fun printVehicleCard(repository: RemkaRepository, vehicleId: String) {
         println("  Где купить: ${plan.placeToBuy ?: "не указано"}")
         println("  Ответственный: ${plan.responsiblePerson ?: "не указан"}")
         println("  Комментарий: ${plan.comment ?: "нет"}")
+        printAttachments(repository.getAttachments(AttachmentOwnerType.PLAN, plan.id))
+    }
+}
+
+private fun printAttachments(attachments: List<Attachment>) {
+    if (attachments.isEmpty()) {
+        return
+    }
+
+    println("  Вложения:")
+    attachments.forEach { attachment ->
+        val comment = attachment.comment?.let { " ($it)" } ?: ""
+        println("  - ${attachment.type}: ${attachment.path}$comment")
     }
 }

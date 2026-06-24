@@ -3,6 +3,7 @@ package com.remka
 import com.remka.data.IdGenerator
 import com.remka.data.JsonFileStorage
 import com.remka.data.RemkaRepository
+import com.remka.domain.AttachmentOwnerType
 import com.remka.domain.EventParticipant
 import com.remka.domain.MaintenancePlan
 import com.remka.domain.MaintenancePlanStatus
@@ -12,6 +13,7 @@ import com.remka.domain.VehicleEventType
 import com.remka.domain.VehicleType
 import com.remka.ui.printVehicleCard
 import com.remka.ui.printVehicleList
+import com.remka.ui.readAttachments
 import com.remka.ui.readMaintenancePlan
 import com.remka.ui.readVehicle
 import com.remka.ui.readVehicleEvent
@@ -144,8 +146,10 @@ private fun openVehicleCard(repository: RemkaRepository) {
 private fun addVehicleEvent(repository: RemkaRepository, idGenerator: IdGenerator, storage: JsonFileStorage) {
     val vehicle = chooseVehicle(repository) ?: return
     val event = readVehicleEvent(idGenerator, vehicle.id)
+    val attachments = readAttachments(idGenerator, AttachmentOwnerType.EVENT, event.id)
 
     repository.addEvent(event)
+    repository.addAttachments(attachments)
     saveRepository(repository, storage)
     println("Событие добавлено: ${event.title}")
 }
@@ -153,8 +157,10 @@ private fun addVehicleEvent(repository: RemkaRepository, idGenerator: IdGenerato
 private fun addMaintenancePlan(repository: RemkaRepository, idGenerator: IdGenerator, storage: JsonFileStorage) {
     val vehicle = chooseVehicle(repository) ?: return
     val plan = readMaintenancePlan(idGenerator, vehicle.id)
+    val attachments = readAttachments(idGenerator, AttachmentOwnerType.PLAN, plan.id)
 
     repository.addPlan(plan)
+    repository.addAttachments(attachments)
     saveRepository(repository, storage)
     println("План добавлен: ${plan.title}")
 }
@@ -211,7 +217,7 @@ private fun readPlanStatus(): MaintenancePlanStatus? {
 
 private fun saveRepository(repository: RemkaRepository, storage: JsonFileStorage) {
     storage.save(repository.createSnapshot())
-    println("Данные сохранены в remka-data.json")
+    println("Данные сохранены в ${storage.displayPath()}")
 }
 
 private fun chooseVehicle(repository: RemkaRepository): Vehicle? {

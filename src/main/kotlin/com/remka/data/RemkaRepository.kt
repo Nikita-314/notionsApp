@@ -1,5 +1,7 @@
 package com.remka.data
 
+import com.remka.domain.Attachment
+import com.remka.domain.AttachmentOwnerType
 import com.remka.domain.MaintenancePlan
 import com.remka.domain.Vehicle
 import com.remka.domain.VehicleEvent
@@ -8,6 +10,7 @@ class RemkaRepository {
     private val vehicles = mutableListOf<Vehicle>()
     private val events = mutableListOf<VehicleEvent>()
     private val plans = mutableListOf<MaintenancePlan>()
+    private val attachments = mutableListOf<Attachment>()
 
     fun addVehicle(vehicle: Vehicle) {
         vehicles.add(vehicle)
@@ -19,6 +22,10 @@ class RemkaRepository {
 
     fun addPlan(plan: MaintenancePlan) {
         plans.add(plan)
+    }
+
+    fun addAttachments(newAttachments: List<Attachment>) {
+        attachments.addAll(newAttachments)
     }
 
     fun updatePlan(updatedPlan: MaintenancePlan): Boolean {
@@ -41,13 +48,17 @@ class RemkaRepository {
 
         plans.clear()
         plans.addAll(snapshot.plans)
+
+        attachments.clear()
+        attachments.addAll(snapshot.attachments)
     }
 
     fun createSnapshot(): RemkaSnapshot =
         RemkaSnapshot(
             vehicles = vehicles.toList(),
             events = events.toList(),
-            plans = plans.toList()
+            plans = plans.toList(),
+            attachments = attachments.toList()
         )
 
     fun getVehicles(): List<Vehicle> = vehicles.toList()
@@ -60,4 +71,9 @@ class RemkaRepository {
 
     fun getPlansForVehicle(vehicleId: String): List<MaintenancePlan> =
         plans.filter { plan -> plan.vehicleId == vehicleId }
+
+    fun getAttachments(ownerType: AttachmentOwnerType, ownerId: String): List<Attachment> =
+        attachments.filter { attachment ->
+            attachment.ownerType == ownerType && attachment.ownerId == ownerId
+        }
 }
