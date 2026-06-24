@@ -1,6 +1,7 @@
 package com.remka
 
 import com.remka.data.IdGenerator
+import com.remka.data.JsonFileStorage
 import com.remka.data.RemkaRepository
 import com.remka.domain.EventParticipant
 import com.remka.domain.MaintenancePlan
@@ -21,7 +22,20 @@ fun main() {
 
     val repository = RemkaRepository()
     val idGenerator = IdGenerator()
+    val storage = JsonFileStorage()
 
+    val loadedSnapshot = storage.load()
+    if (loadedSnapshot == null) {
+        addDemoData(repository, idGenerator)
+    } else {
+        repository.loadSnapshot(loadedSnapshot)
+        println("Данные загружены из remka-data.json")
+    }
+
+    runMenu(repository, idGenerator, storage)
+}
+
+private fun addDemoData(repository: RemkaRepository, idGenerator: IdGenerator) {
     val motorcycle = Vehicle(
         id = idGenerator.nextVehicleId(),
         type = VehicleType.MOTORCYCLE,
@@ -80,8 +94,6 @@ fun main() {
             comment = "Перед покупкой проверить тип лампы."
         )
     )
-
-    runMenu(repository, idGenerator)
 }
 
 private fun configureUtf8Console() {
@@ -89,7 +101,7 @@ private fun configureUtf8Console() {
     System.setErr(PrintStream(System.err, true, StandardCharsets.UTF_8))
 }
 
-private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator) {
+private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator, storage: JsonFileStorage) {
     while (true) {
         println()
         println("=== Remka ===")
@@ -106,11 +118,12 @@ private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator) {
             "2" -> {
                 val vehicle = readVehicle(idGenerator)
                 repository.addVehicle(vehicle)
+                saveRepository(repository, storage)
                 println("Добавлено: ${vehicle.name}")
             }
             "3" -> openVehicleCard(repository)
-            "4" -> addVehicleEvent(repository, idGenerator)
-            "5" -> addMaintenancePlan(repository, idGenerator)
+            "4" -> addVehicleEvent(repository, idGenerator, storage)
+            "5" -> addMaintenancePlan(repository, idGenerator, storage)
             "0" -> {
                 println("До встречи!")
                 return
@@ -125,20 +138,27 @@ private fun openVehicleCard(repository: RemkaRepository) {
     printVehicleCard(repository, vehicle.id)
 }
 
-private fun addVehicleEvent(repository: RemkaRepository, idGenerator: IdGenerator) {
+private fun addVehicleEvent(repository: RemkaRepository, idGenerator: IdGenerator, storage: JsonFileStorage) {
     val vehicle = chooseVehicle(repository) ?: return
     val event = readVehicleEvent(idGenerator, vehicle.id)
 
     repository.addEvent(event)
+    saveRepository(repository, storage)
     println("Событие добавлено: ${event.title}")
 }
 
-private fun addMaintenancePlan(repository: RemkaRepository, idGenerator: IdGenerator) {
+private fun addMaintenancePlan(repository: RemkaRepository, idGenerator: IdGenerator, storage: JsonFileStorage) {
     val vehicle = chooseVehicle(repository) ?: return
     val plan = readMaintenancePlan(idGenerator, vehicle.id)
 
     repository.addPlan(plan)
+    saveRepository(repository, storage)
     println("План добавлен: ${plan.title}")
+}
+
+private fun saveRepository(repository: RemkaRepository, storage: JsonFileStorage) {
+    storage.save(repository.createSnapshot())
+    println("Данные сохранены в remka-data.json")
 }
 
 private fun chooseVehicle(repository: RemkaRepository): Vehicle? {

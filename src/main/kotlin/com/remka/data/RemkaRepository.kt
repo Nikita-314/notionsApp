@@ -21,6 +21,24 @@ class RemkaRepository {
         plans.add(plan)
     }
 
+    fun loadSnapshot(snapshot: RemkaSnapshot) {
+        vehicles.clear()
+        vehicles.addAll(snapshot.vehicles)
+
+        events.clear()
+        events.addAll(snapshot.events)
+
+        plans.clear()
+        plans.addAll(snapshot.plans)
+    }
+
+    fun createSnapshot(): RemkaSnapshot =
+        RemkaSnapshot(
+            vehicles = vehicles.toList(),
+            events = events.toList(),
+            plans = plans.toList()
+        )
+
     fun getVehicles(): List<Vehicle> = vehicles.toList()
 
     fun getVehicleById(vehicleId: String): Vehicle? =

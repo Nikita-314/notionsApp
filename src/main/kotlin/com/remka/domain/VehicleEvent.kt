@@ -1,5 +1,8 @@
 package com.remka.domain
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class VehicleEventType {
     MAINTENANCE,
     REPAIR,
@@ -10,6 +13,7 @@ enum class VehicleEventType {
     CUSTOM
 }
 
+@Serializable
 data class VehicleEvent(
     val id: String,
     val vehicleId: String,
@@ -23,6 +27,7 @@ data class VehicleEvent(
     val participants: List<EventParticipant> = emptyList()
 )
 
+@Serializable
 data class EventParticipant(
     val name: String,
     val workDescription: String? = null

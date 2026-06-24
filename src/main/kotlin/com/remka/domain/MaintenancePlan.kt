@@ -1,11 +1,15 @@
 package com.remka.domain
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class MaintenancePlanStatus {
     PLANNED,
     DONE,
     CANCELLED
 }
 
+@Serializable
 data class MaintenancePlan(
     val id: String,
     val vehicleId: String,
