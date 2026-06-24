@@ -2,6 +2,7 @@ package com.remka.ui
 
 import com.remka.data.IdGenerator
 import com.remka.domain.EventParticipant
+import com.remka.domain.MaintenancePlan
 import com.remka.domain.Vehicle
 import com.remka.domain.VehicleEvent
 import com.remka.domain.VehicleEventType
@@ -63,6 +64,30 @@ fun readVehicleEvent(idGenerator: IdGenerator, vehicleId: String): VehicleEvent 
         shopName = shopName,
         comment = comment,
         participants = participants
+    )
+}
+
+fun readMaintenancePlan(idGenerator: IdGenerator, vehicleId: String): MaintenancePlan {
+    println("Добавление плана")
+
+    val title = readRequiredText("Название плана")
+    val plannedDate = readRequiredText("Дата выполнения")
+    val reminderDate = readOptionalText("Дата напоминания")
+    val targetMileage = readOptionalLong("Пробег для выполнения")
+    val placeToBuy = readOptionalText("Где купить")
+    val responsiblePerson = readOptionalText("Кто отвечает")
+    val comment = readOptionalText("Комментарий")
+
+    return MaintenancePlan(
+        id = idGenerator.nextPlanId(),
+        vehicleId = vehicleId,
+        title = title,
+        plannedDate = plannedDate,
+        reminderDate = reminderDate,
+        targetMileage = targetMileage,
+        placeToBuy = placeToBuy,
+        responsiblePerson = responsiblePerson,
+        comment = comment
     )
 }
 
