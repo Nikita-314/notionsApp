@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.remka.mobile"
     compileSdk = 36
+    buildToolsVersion = "36.1.0"
 
     defaultConfig {
         applicationId = "com.remka.mobile"
