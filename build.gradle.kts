@@ -16,6 +16,11 @@ dependencies {
 
 application {
     mainClass.set("com.remka.MainKt")
+    applicationDefaultJvmArgs = listOf(
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8"
+    )
 }
 
 kotlin {
@@ -28,4 +33,13 @@ tasks.test {
 
 tasks.named<JavaExec>("run") {
     standardInput = System.`in`
+    jvmArgs(
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8"
+    )
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.encoding = "UTF-8"
 }

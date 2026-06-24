@@ -123,3 +123,24 @@ val number = value.toIntOrNull()
 2. выбрать `2` и добавить транспорт;
 3. выбрать `3` и открыть карточку;
 4. выбрать `0` и выйти.
+
+## Если русские буквы отображаются неправильно
+
+Это проблема кодировки консоли. Проект настроен на UTF-8 в `build.gradle.kts`:
+
+```kotlin
+applicationDefaultJvmArgs = listOf(
+    "-Dfile.encoding=UTF-8",
+    "-Dsun.stdout.encoding=UTF-8",
+    "-Dsun.stderr.encoding=UTF-8"
+)
+```
+
+Если в IntelliJ IDEA всё равно видны нечитаемые символы, проверь настройки:
+
+- `Settings | Editor | File Encodings`;
+- `Global Encoding`: UTF-8;
+- `Project Encoding`: UTF-8;
+- `Default encoding for properties files`: UTF-8.
+
+После изменения настроек лучше перезапустить запуск `./gradlew run`.
