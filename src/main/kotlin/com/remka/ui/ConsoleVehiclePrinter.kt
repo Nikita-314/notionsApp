@@ -66,6 +66,7 @@ fun printVehicleCard(repository: RemkaRepository, vehicleId: String) {
 
     plans.forEach { plan ->
         println("- ${plan.plannedDate}: ${plan.title}")
+        println("  Статус: ${plan.status}")
         println("  Напомнить: ${plan.reminderDate ?: "не задано"}")
         println("  Пробег: ${plan.targetMileage ?: "не указан"} км")
         println("  Где купить: ${plan.placeToBuy ?: "не указано"}")

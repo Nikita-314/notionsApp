@@ -5,6 +5,7 @@ import com.remka.data.JsonFileStorage
 import com.remka.data.RemkaRepository
 import com.remka.domain.EventParticipant
 import com.remka.domain.MaintenancePlan
+import com.remka.domain.MaintenancePlanStatus
 import com.remka.domain.Vehicle
 import com.remka.domain.VehicleEvent
 import com.remka.domain.VehicleEventType
@@ -110,6 +111,7 @@ private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator, stora
         println("3. Открыть карточку транспорта")
         println("4. Добавить событие")
         println("5. Добавить план")
+        println("6. Изменить статус плана")
         println("0. Выход")
         print("Выбери действие: ")
 
@@ -124,6 +126,7 @@ private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator, stora
             "3" -> openVehicleCard(repository)
             "4" -> addVehicleEvent(repository, idGenerator, storage)
             "5" -> addMaintenancePlan(repository, idGenerator, storage)
+            "6" -> changePlanStatus(repository, storage)
             "0" -> {
                 println("До встречи!")
                 return
@@ -154,6 +157,56 @@ private fun addMaintenancePlan(repository: RemkaRepository, idGenerator: IdGener
     repository.addPlan(plan)
     saveRepository(repository, storage)
     println("План добавлен: ${plan.title}")
+}
+
+private fun changePlanStatus(repository: RemkaRepository, storage: JsonFileStorage) {
+    val vehicle = chooseVehicle(repository) ?: return
+    val plans = repository.getPlansForVehicle(vehicle.id)
+
+    if (plans.isEmpty()) {
+        println("У этого транспорта пока нет планов.")
+        return
+    }
+
+    plans.forEachIndexed { index, plan ->
+        println("${index + 1}. ${plan.title} - ${plan.status}")
+    }
+    print("Введи номер плана: ")
+
+    val planIndex = readln().trim().toIntOrNull()
+    if (planIndex == null || planIndex !in 1..plans.size) {
+        println("Такого плана нет.")
+        return
+    }
+
+    val plan = plans[planIndex - 1]
+    val newStatus = readPlanStatus() ?: return
+    val updated = plan.copy(status = newStatus)
+
+    if (repository.updatePlan(updated)) {
+        saveRepository(repository, storage)
+        println("Статус плана изменён: ${updated.title} - ${updated.status}")
+    } else {
+        println("Не удалось обновить план.")
+    }
+}
+
+private fun readPlanStatus(): MaintenancePlanStatus? {
+    println("Новый статус:")
+    println("1. Запланирован")
+    println("2. Выполнен")
+    println("3. Отменён")
+    print("Выбери номер: ")
+
+    return when (readln().trim()) {
+        "1" -> MaintenancePlanStatus.PLANNED
+        "2" -> MaintenancePlanStatus.DONE
+        "3" -> MaintenancePlanStatus.CANCELLED
+        else -> {
+            println("Неизвестный статус.")
+            null
+        }
+    }
 }
 
 private fun saveRepository(repository: RemkaRepository, storage: JsonFileStorage) {

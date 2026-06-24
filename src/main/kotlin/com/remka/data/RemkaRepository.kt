@@ -21,6 +21,17 @@ class RemkaRepository {
         plans.add(plan)
     }
 
+    fun updatePlan(updatedPlan: MaintenancePlan): Boolean {
+        val index = plans.indexOfFirst { plan -> plan.id == updatedPlan.id }
+
+        if (index == -1) {
+            return false
+        }
+
+        plans[index] = updatedPlan
+        return true
+    }
+
     fun loadSnapshot(snapshot: RemkaSnapshot) {
         vehicles.clear()
         vehicles.addAll(snapshot.vehicles)
