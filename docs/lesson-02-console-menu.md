@@ -144,3 +144,20 @@ applicationDefaultJvmArgs = listOf(
 - `Default encoding for properties files`: UTF-8.
 
 После изменения настроек лучше перезапустить запуск `./gradlew run`.
+
+Если ты запускаешь файл напрямую через зелёную кнопку рядом с `fun main()`, Gradle-настройки могут не примениться. Поэтому в `Main.kt` дополнительно есть настройка:
+
+```kotlin
+private fun configureUtf8Console() {
+    System.setOut(PrintStream(System.out, true, StandardCharsets.UTF_8))
+    System.setErr(PrintStream(System.err, true, StandardCharsets.UTF_8))
+}
+```
+
+Если после этого в консоли всё равно ромбики с вопросами, значит проблема уже не в Kotlin-коде, а в окне вывода IDE или шрифте. Для проверки запусти проект из встроенного Terminal:
+
+```bash
+./gradlew run
+```
+
+Если в Terminal текст нормальный, а в Run Console нет, нужно менять настройки IntelliJ IDEA: кодировка UTF-8 и шрифт консоли с поддержкой кириллицы.

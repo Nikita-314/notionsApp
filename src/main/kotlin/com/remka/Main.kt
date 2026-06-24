@@ -11,8 +11,12 @@ import com.remka.domain.VehicleType
 import com.remka.ui.printVehicleCard
 import com.remka.ui.printVehicleList
 import com.remka.ui.readVehicle
+import java.io.PrintStream
+import java.nio.charset.StandardCharsets
 
 fun main() {
+    configureUtf8Console()
+
     val repository = RemkaRepository()
     val idGenerator = IdGenerator()
 
@@ -76,6 +80,11 @@ fun main() {
     )
 
     runMenu(repository, idGenerator)
+}
+
+private fun configureUtf8Console() {
+    System.setOut(PrintStream(System.out, true, StandardCharsets.UTF_8))
+    System.setErr(PrintStream(System.err, true, StandardCharsets.UTF_8))
 }
 
 private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator) {
