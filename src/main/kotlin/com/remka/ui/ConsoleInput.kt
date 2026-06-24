@@ -1,7 +1,10 @@
 package com.remka.ui
 
 import com.remka.data.IdGenerator
+import com.remka.domain.EventParticipant
 import com.remka.domain.Vehicle
+import com.remka.domain.VehicleEvent
+import com.remka.domain.VehicleEventType
 import com.remka.domain.VehicleType
 
 fun readVehicle(idGenerator: IdGenerator): Vehicle {
@@ -27,6 +30,42 @@ fun readVehicle(idGenerator: IdGenerator): Vehicle {
     )
 }
 
+fun readVehicleEvent(idGenerator: IdGenerator, vehicleId: String): VehicleEvent {
+    println("Добавление события")
+
+    val type = readVehicleEventType()
+    val title = readRequiredText("Название события")
+    val date = readRequiredText("Дата")
+    val mileage = readOptionalLong("Пробег")
+    val cost = readOptionalDouble("Стоимость")
+    val shopName = readOptionalText("Магазин")
+    val comment = readOptionalText("Комментарий")
+    val helperName = readOptionalText("Кто помогал")
+    val participants = if (helperName == null) {
+        emptyList()
+    } else {
+        listOf(
+            EventParticipant(
+                name = helperName,
+                workDescription = readOptionalText("Что сделал помощник")
+            )
+        )
+    }
+
+    return VehicleEvent(
+        id = idGenerator.nextEventId(),
+        vehicleId = vehicleId,
+        type = type,
+        title = title,
+        date = date,
+        mileage = mileage,
+        cost = cost,
+        shopName = shopName,
+        comment = comment,
+        participants = participants
+    )
+}
+
 private fun readVehicleType(): VehicleType {
     while (true) {
         println("Тип транспорта:")
@@ -43,6 +82,31 @@ private fun readVehicleType(): VehicleType {
             "3" -> return VehicleType.SCOOTER
             "4" -> return VehicleType.BICYCLE
             "5" -> return VehicleType.OTHER
+            else -> println("Не понял выбор. Попробуй ещё раз.")
+        }
+    }
+}
+
+private fun readVehicleEventType(): VehicleEventType {
+    while (true) {
+        println("Тип события:")
+        println("1. Обслуживание")
+        println("2. Ремонт")
+        println("3. Установка детали")
+        println("4. Покупка")
+        println("5. Диагностика")
+        println("6. Мойка")
+        println("7. Другое")
+        print("Выбери номер: ")
+
+        when (readln().trim()) {
+            "1" -> return VehicleEventType.MAINTENANCE
+            "2" -> return VehicleEventType.REPAIR
+            "3" -> return VehicleEventType.INSTALLED_PART
+            "4" -> return VehicleEventType.PURCHASE
+            "5" -> return VehicleEventType.DIAGNOSTIC
+            "6" -> return VehicleEventType.WASH
+            "7" -> return VehicleEventType.CUSTOM
             else -> println("Не понял выбор. Попробуй ещё раз.")
         }
     }
@@ -81,6 +145,24 @@ private fun readOptionalInt(label: String): Int? {
         }
 
         println("Нужно ввести целое число.")
+    }
+}
+
+private fun readOptionalDouble(label: String): Double? {
+    while (true) {
+        print("$label (можно оставить пустым): ")
+        val value = readln().trim()
+
+        if (value.isBlank()) {
+            return null
+        }
+
+        val number = value.replace(',', '.').toDoubleOrNull()
+        if (number != null) {
+            return number
+        }
+
+        println("Нужно ввести число.")
     }
 }
 

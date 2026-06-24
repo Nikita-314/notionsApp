@@ -10,6 +10,7 @@ import com.remka.domain.VehicleEventType
 import com.remka.domain.VehicleType
 import com.remka.ui.printVehicleCard
 import com.remka.ui.printVehicleList
+import com.remka.ui.readVehicleEvent
 import com.remka.ui.readVehicle
 import java.io.PrintStream
 import java.nio.charset.StandardCharsets
@@ -94,6 +95,7 @@ private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator) {
         println("1. Показать транспорт")
         println("2. Добавить транспорт")
         println("3. Открыть карточку транспорта")
+        println("4. Добавить событие")
         println("0. Выход")
         print("Выбери действие: ")
 
@@ -105,6 +107,7 @@ private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator) {
                 println("Добавлено: ${vehicle.name}")
             }
             "3" -> openVehicleCard(repository)
+            "4" -> addVehicleEvent(repository, idGenerator)
             "0" -> {
                 println("До встречи!")
                 return
@@ -115,11 +118,24 @@ private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator) {
 }
 
 private fun openVehicleCard(repository: RemkaRepository) {
+    val vehicle = chooseVehicle(repository) ?: return
+    printVehicleCard(repository, vehicle.id)
+}
+
+private fun addVehicleEvent(repository: RemkaRepository, idGenerator: IdGenerator) {
+    val vehicle = chooseVehicle(repository) ?: return
+    val event = readVehicleEvent(idGenerator, vehicle.id)
+
+    repository.addEvent(event)
+    println("Событие добавлено: ${event.title}")
+}
+
+private fun chooseVehicle(repository: RemkaRepository): Vehicle? {
     val vehicles = repository.getVehicles()
 
     if (vehicles.isEmpty()) {
         println("Сначала добавь транспорт.")
-        return
+        return null
     }
 
     printVehicleList(vehicles)
@@ -128,9 +144,8 @@ private fun openVehicleCard(repository: RemkaRepository) {
     val index = readln().trim().toIntOrNull()
     if (index == null || index !in 1..vehicles.size) {
         println("Такого номера нет.")
-        return
+        return null
     }
 
-    val vehicle = vehicles[index - 1]
-    printVehicleCard(repository, vehicle.id)
+    return vehicles[index - 1]
 }
