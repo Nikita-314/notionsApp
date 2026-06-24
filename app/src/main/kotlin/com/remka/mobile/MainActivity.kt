@@ -97,6 +97,44 @@ private fun RemkaApp() {
             )
         )
     }
+    val events = remember {
+        mutableStateListOf(
+            VehicleEvent(
+                id = "demo-event-1",
+                vehicleId = "demo-motorcycle",
+                type = VehicleEventType.INSTALLED_PART,
+                title = "Установил багажник",
+                date = "2026-06-24",
+                mileage = 42010,
+                cost = 8500.0,
+                shopName = "MotoParts",
+                comment = "Позже проверить крепления."
+            ),
+            VehicleEvent(
+                id = "demo-event-2",
+                vehicleId = "demo-motorcycle",
+                type = VehicleEventType.MAINTENANCE,
+                title = "Поменял масло",
+                date = "2026-06-24",
+                mileage = 42100,
+                cost = 3200.0,
+                shopName = "Oil Market",
+                comment = "Сливная пробка плохо закручивается."
+            )
+        )
+    }
+    val plans = remember {
+        mutableStateListOf(
+            MaintenancePlan(
+                id = "demo-plan-1",
+                vehicleId = "demo-motorcycle",
+                title = "Поменять лампочку",
+                plannedDate = "2026-07-10",
+                reminderDate = "2026-07-09",
+                comment = "Перед покупкой проверить тип лампы."
+            )
+        )
+    }
 
     when (screen) {
         RemkaScreen.VehicleList -> VehicleListScreen(
@@ -124,9 +162,27 @@ private fun RemkaApp() {
             } else {
                 VehicleDetailsScreen(
                     vehicle = selectedVehicle,
-                    events = demoEventsFor(selectedVehicle),
-                    plans = demoPlansFor(selectedVehicle),
-                    onBack = { screen = RemkaScreen.VehicleList }
+                    events = events.filter { event -> event.vehicleId == selectedVehicle.id },
+                    plans = plans.filter { plan -> plan.vehicleId == selectedVehicle.id },
+                    onBack = { screen = RemkaScreen.VehicleList },
+                    onAddEventClick = { screen = RemkaScreen.AddEvent }
+                )
+            }
+        }
+
+        RemkaScreen.AddEvent -> {
+            val selectedVehicle = vehicles.firstOrNull { vehicle -> vehicle.id == selectedVehicleId }
+
+            if (selectedVehicle == null) {
+                screen = RemkaScreen.VehicleList
+            } else {
+                AddEventScreen(
+                    vehicle = selectedVehicle,
+                    onBack = { screen = RemkaScreen.VehicleDetails },
+                    onSave = { event ->
+                        events.add(event)
+                        screen = RemkaScreen.VehicleDetails
+                    }
                 )
             }
         }
@@ -136,7 +192,8 @@ private fun RemkaApp() {
 private enum class RemkaScreen {
     VehicleList,
     AddVehicle,
-    VehicleDetails
+    VehicleDetails,
+    AddEvent
 }
 
 @Composable
@@ -366,12 +423,186 @@ private fun AddVehicleScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddEventScreen(
+    vehicle: Vehicle,
+    onBack: () -> Unit,
+    onSave: (VehicleEvent) -> Unit
+) {
+    var type by remember { mutableStateOf(VehicleEventType.MAINTENANCE) }
+    var title by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf("2026-06-24") }
+    var mileage by remember { mutableStateOf("") }
+    var cost by remember { mutableStateOf("") }
+    var shopName by remember { mutableStateOf("") }
+    var comment by remember { mutableStateOf("") }
+    var typeMenuExpanded by remember { mutableStateOf(false) }
+
+    val canSave = title.isNotBlank() && date.isNotBlank()
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Новое событие",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = vehicle.name,
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                OutlinedButton(onClick = onBack) {
+                    Text("Назад")
+                }
+            }
+        }
+
+        item {
+            ExposedDropdownMenuBox(
+                expanded = typeMenuExpanded,
+                onExpandedChange = { typeMenuExpanded = !typeMenuExpanded }
+            ) {
+                OutlinedTextField(
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                        .fillMaxWidth(),
+                    value = type.displayName(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Тип события") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuExpanded)
+                    }
+                )
+
+                ExposedDropdownMenu(
+                    expanded = typeMenuExpanded,
+                    onDismissRequest = { typeMenuExpanded = false }
+                ) {
+                    VehicleEventType.entries.forEach { eventType ->
+                        DropdownMenuItem(
+                            text = { Text(eventType.displayName()) },
+                            onClick = {
+                                type = eventType
+                                typeMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Название") },
+                singleLine = true
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = date,
+                onValueChange = { date = it },
+                label = { Text("Дата") },
+                singleLine = true
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = mileage,
+                onValueChange = { mileage = it.onlyDigits() },
+                label = { Text("Пробег") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = cost,
+                onValueChange = { cost = it.onlyDecimalNumber() },
+                label = { Text("Стоимость") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = shopName,
+                onValueChange = { shopName = it },
+                label = { Text("Магазин или место") },
+                singleLine = true
+            )
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = comment,
+                onValueChange = { comment = it },
+                label = { Text("Комментарий") },
+                minLines = 3
+            )
+        }
+
+        item {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = canSave,
+                onClick = {
+                    onSave(
+                        VehicleEvent(
+                            id = UUID.randomUUID().toString(),
+                            vehicleId = vehicle.id,
+                            type = type,
+                            title = title.trim(),
+                            date = date.trim(),
+                            mileage = mileage.toLongOrNull(),
+                            cost = cost.replace(',', '.').toDoubleOrNull(),
+                            shopName = shopName.trim().ifBlank { null },
+                            comment = comment.trim().ifBlank { null }
+                        )
+                    )
+                }
+            ) {
+                Text("Сохранить")
+            }
+        }
+    }
+}
+
 @Composable
 private fun VehicleDetailsScreen(
     vehicle: Vehicle,
     events: List<VehicleEvent>,
     plans: List<MaintenancePlan>,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onAddEventClick: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -429,7 +660,18 @@ private fun VehicleDetailsScreen(
         }
 
         item {
-            SectionTitle("История")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SectionTitle("История")
+                Button(onClick = onAddEventClick) {
+                    Text("Добавить")
+                }
+            }
         }
 
         if (events.isEmpty()) {
@@ -638,56 +880,11 @@ private fun MaintenancePlanStatus.displayName(): String =
         MaintenancePlanStatus.CANCELLED -> "Отменён"
     }
 
-private fun demoEventsFor(vehicle: Vehicle): List<VehicleEvent> {
-    if (vehicle.id != "demo-motorcycle") {
-        return emptyList()
-    }
-
-    return listOf(
-        VehicleEvent(
-            id = "demo-event-1",
-            vehicleId = vehicle.id,
-            type = VehicleEventType.INSTALLED_PART,
-            title = "Установил багажник",
-            date = "2026-06-24",
-            mileage = 42010,
-            cost = 8500.0,
-            shopName = "MotoParts",
-            comment = "Позже проверить крепления."
-        ),
-        VehicleEvent(
-            id = "demo-event-2",
-            vehicleId = vehicle.id,
-            type = VehicleEventType.MAINTENANCE,
-            title = "Поменял масло",
-            date = "2026-06-24",
-            mileage = 42100,
-            cost = 3200.0,
-            shopName = "Oil Market",
-            comment = "Сливная пробка плохо закручивается."
-        )
-    )
-}
-
-private fun demoPlansFor(vehicle: Vehicle): List<MaintenancePlan> {
-    if (vehicle.id != "demo-motorcycle") {
-        return emptyList()
-    }
-
-    return listOf(
-        MaintenancePlan(
-            id = "demo-plan-1",
-            vehicleId = vehicle.id,
-            title = "Поменять лампочку",
-            plannedDate = "2026-07-10",
-            reminderDate = "2026-07-09",
-            comment = "Перед покупкой проверить тип лампы."
-        )
-    )
-}
-
 private fun String.onlyDigits(): String =
     filter { char -> char.isDigit() }
+
+private fun String.onlyDecimalNumber(): String =
+    filter { char -> char.isDigit() || char == '.' || char == ',' }
 
 @Composable
 private fun VehicleIcon(type: VehicleType) {
