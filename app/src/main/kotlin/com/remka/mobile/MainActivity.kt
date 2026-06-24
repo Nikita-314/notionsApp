@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +47,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.remka.domain.MaintenancePlan
+import com.remka.domain.MaintenancePlanStatus
 import com.remka.domain.Vehicle
+import com.remka.domain.VehicleEvent
+import com.remka.domain.VehicleEventType
 import com.remka.domain.VehicleType
 import java.util.UUID
 
@@ -77,6 +82,7 @@ private fun RemkaTheme(content: @Composable () -> Unit) {
 @Composable
 private fun RemkaApp() {
     var screen by remember { mutableStateOf(RemkaScreen.VehicleList) }
+    var selectedVehicleId by remember { mutableStateOf<String?>(null) }
     val vehicles = remember {
         mutableStateListOf(
             Vehicle(
@@ -95,7 +101,11 @@ private fun RemkaApp() {
     when (screen) {
         RemkaScreen.VehicleList -> VehicleListScreen(
             vehicles = vehicles,
-            onAddVehicleClick = { screen = RemkaScreen.AddVehicle }
+            onAddVehicleClick = { screen = RemkaScreen.AddVehicle },
+            onVehicleClick = { vehicle ->
+                selectedVehicleId = vehicle.id
+                screen = RemkaScreen.VehicleDetails
+            }
         )
 
         RemkaScreen.AddVehicle -> AddVehicleScreen(
@@ -105,18 +115,35 @@ private fun RemkaApp() {
                 screen = RemkaScreen.VehicleList
             }
         )
+
+        RemkaScreen.VehicleDetails -> {
+            val selectedVehicle = vehicles.firstOrNull { vehicle -> vehicle.id == selectedVehicleId }
+
+            if (selectedVehicle == null) {
+                screen = RemkaScreen.VehicleList
+            } else {
+                VehicleDetailsScreen(
+                    vehicle = selectedVehicle,
+                    events = demoEventsFor(selectedVehicle),
+                    plans = demoPlansFor(selectedVehicle),
+                    onBack = { screen = RemkaScreen.VehicleList }
+                )
+            }
+        }
     }
 }
 
 private enum class RemkaScreen {
     VehicleList,
-    AddVehicle
+    AddVehicle,
+    VehicleDetails
 }
 
 @Composable
 private fun VehicleListScreen(
     vehicles: List<Vehicle>,
-    onAddVehicleClick: () -> Unit
+    onAddVehicleClick: () -> Unit,
+    onVehicleClick: (Vehicle) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -154,7 +181,10 @@ private fun VehicleListScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(vehicles, key = { vehicle -> vehicle.id }) { vehicle ->
-                VehicleCard(vehicle = vehicle)
+                VehicleCard(
+                    vehicle = vehicle,
+                    onClick = { onVehicleClick(vehicle) }
+                )
             }
         }
     }
@@ -337,9 +367,106 @@ private fun AddVehicleScreen(
 }
 
 @Composable
-private fun VehicleCard(vehicle: Vehicle) {
+private fun VehicleDetailsScreen(
+    vehicle: Vehicle,
+    events: List<VehicleEvent>,
+    plans: List<MaintenancePlan>,
+    onBack: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = vehicle.name,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = vehicle.type.displayName(),
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                OutlinedButton(onClick = onBack) {
+                    Text("Назад")
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Сводка",
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF0F172A)
+                    )
+                    DetailLine("Модель", listOfNotNull(vehicle.manufacturer, vehicle.model).joinToString(" ").ifBlank { "не указана" })
+                    DetailLine("Год", vehicle.year?.toString() ?: "не указан")
+                    DetailLine("Госномер", vehicle.registrationNumber ?: "не указан")
+                    DetailLine("Пробег", vehicle.currentMileage?.let { "$it км" } ?: "не указан")
+                }
+            }
+        }
+
+        item {
+            SectionTitle("История")
+        }
+
+        if (events.isEmpty()) {
+            item {
+                EmptyText("Событий пока нет")
+            }
+        } else {
+            items(events, key = { event -> event.id }) { event ->
+                EventCard(event = event)
+            }
+        }
+
+        item {
+            SectionTitle("Планы")
+        }
+
+        if (plans.isEmpty()) {
+            item {
+                EmptyText("Планов пока нет")
+            }
+        } else {
+            items(plans, key = { plan -> plan.id }) { plan ->
+                PlanCard(plan = plan)
+            }
+        }
+    }
+}
+
+@Composable
+private fun VehicleCard(
+    vehicle: Vehicle,
+    onClick: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -387,6 +514,101 @@ private fun VehicleCard(vehicle: Vehicle) {
     }
 }
 
+@Composable
+private fun EventCard(event: VehicleEvent) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = event.title,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF0F172A)
+            )
+            Text(
+                text = "${event.date} · ${event.type.displayName()}",
+                color = Color(0xFF64748B),
+                fontSize = 13.sp
+            )
+            DetailLine("Пробег", event.mileage?.let { "$it км" } ?: "не указан")
+            DetailLine("Стоимость", event.cost?.let { "$it" } ?: "не указана")
+            DetailLine("Комментарий", event.comment ?: "нет")
+        }
+    }
+}
+
+@Composable
+private fun PlanCard(plan: MaintenancePlan) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = plan.title,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF0F172A)
+            )
+            Text(
+                text = "${plan.plannedDate} · ${plan.status.displayName()}",
+                color = Color(0xFF64748B),
+                fontSize = 13.sp
+            )
+            DetailLine("Напомнить", plan.reminderDate ?: "не задано")
+            DetailLine("Пробег", plan.targetMileage?.let { "$it км" } ?: "не указан")
+            DetailLine("Комментарий", plan.comment ?: "нет")
+        }
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        fontSize = 20.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = Color(0xFF0F172A),
+        modifier = Modifier.padding(top = 8.dp)
+    )
+}
+
+@Composable
+private fun EmptyText(text: String) {
+    Text(
+        text = text,
+        color = Color(0xFF64748B),
+        modifier = Modifier.padding(vertical = 4.dp)
+    )
+}
+
+@Composable
+private fun DetailLine(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            color = Color(0xFF64748B)
+        )
+        Text(
+            text = value,
+            color = Color(0xFF334155)
+        )
+    }
+}
+
 private fun VehicleType.displayName(): String =
     when (this) {
         VehicleType.MOTORCYCLE -> "Мотоцикл"
@@ -397,6 +619,72 @@ private fun VehicleType.displayName(): String =
         VehicleType.BOAT -> "Лодка"
         VehicleType.OTHER -> "Другое"
     }
+
+private fun VehicleEventType.displayName(): String =
+    when (this) {
+        VehicleEventType.MAINTENANCE -> "Обслуживание"
+        VehicleEventType.REPAIR -> "Ремонт"
+        VehicleEventType.INSTALLED_PART -> "Установка детали"
+        VehicleEventType.PURCHASE -> "Покупка"
+        VehicleEventType.DIAGNOSTIC -> "Диагностика"
+        VehicleEventType.WASH -> "Мойка"
+        VehicleEventType.CUSTOM -> "Другое"
+    }
+
+private fun MaintenancePlanStatus.displayName(): String =
+    when (this) {
+        MaintenancePlanStatus.PLANNED -> "Запланирован"
+        MaintenancePlanStatus.DONE -> "Выполнен"
+        MaintenancePlanStatus.CANCELLED -> "Отменён"
+    }
+
+private fun demoEventsFor(vehicle: Vehicle): List<VehicleEvent> {
+    if (vehicle.id != "demo-motorcycle") {
+        return emptyList()
+    }
+
+    return listOf(
+        VehicleEvent(
+            id = "demo-event-1",
+            vehicleId = vehicle.id,
+            type = VehicleEventType.INSTALLED_PART,
+            title = "Установил багажник",
+            date = "2026-06-24",
+            mileage = 42010,
+            cost = 8500.0,
+            shopName = "MotoParts",
+            comment = "Позже проверить крепления."
+        ),
+        VehicleEvent(
+            id = "demo-event-2",
+            vehicleId = vehicle.id,
+            type = VehicleEventType.MAINTENANCE,
+            title = "Поменял масло",
+            date = "2026-06-24",
+            mileage = 42100,
+            cost = 3200.0,
+            shopName = "Oil Market",
+            comment = "Сливная пробка плохо закручивается."
+        )
+    )
+}
+
+private fun demoPlansFor(vehicle: Vehicle): List<MaintenancePlan> {
+    if (vehicle.id != "demo-motorcycle") {
+        return emptyList()
+    }
+
+    return listOf(
+        MaintenancePlan(
+            id = "demo-plan-1",
+            vehicleId = vehicle.id,
+            title = "Поменять лампочку",
+            plannedDate = "2026-07-10",
+            reminderDate = "2026-07-09",
+            comment = "Перед покупкой проверить тип лампы."
+        )
+    )
+}
 
 private fun String.onlyDigits(): String =
     filter { char -> char.isDigit() }
