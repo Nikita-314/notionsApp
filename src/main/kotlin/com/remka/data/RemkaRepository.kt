@@ -23,6 +23,9 @@ class RemkaRepository {
 
     fun getVehicles(): List<Vehicle> = vehicles.toList()
 
+    fun getVehicleById(vehicleId: String): Vehicle? =
+        vehicles.firstOrNull { vehicle -> vehicle.id == vehicleId }
+
     fun getEventsForVehicle(vehicleId: String): List<VehicleEvent> =
         events.filter { event -> event.vehicleId == vehicleId }
 

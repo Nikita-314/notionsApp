@@ -1,5 +1,6 @@
 package com.remka
 
+import com.remka.data.IdGenerator
 import com.remka.data.RemkaRepository
 import com.remka.domain.EventParticipant
 import com.remka.domain.MaintenancePlan
@@ -7,12 +8,16 @@ import com.remka.domain.Vehicle
 import com.remka.domain.VehicleEvent
 import com.remka.domain.VehicleEventType
 import com.remka.domain.VehicleType
+import com.remka.ui.printVehicleCard
+import com.remka.ui.printVehicleList
+import com.remka.ui.readVehicle
 
 fun main() {
     val repository = RemkaRepository()
+    val idGenerator = IdGenerator()
 
     val motorcycle = Vehicle(
-        id = "vehicle-1",
+        id = idGenerator.nextVehicleId(),
         type = VehicleType.MOTORCYCLE,
         name = "Мой мотоцикл",
         manufacturer = "Honda",
@@ -70,44 +75,53 @@ fun main() {
         )
     )
 
-    printVehicleCard(repository, motorcycle.id)
+    runMenu(repository, idGenerator)
 }
 
-private fun printVehicleCard(repository: RemkaRepository, vehicleId: String) {
-    val vehicle = repository.getVehicles().first { vehicle -> vehicle.id == vehicleId }
-    val events = repository.getEventsForVehicle(vehicle.id)
-    val plans = repository.getPlansForVehicle(vehicle.id)
+private fun runMenu(repository: RemkaRepository, idGenerator: IdGenerator) {
+    while (true) {
+        println()
+        println("=== Remka ===")
+        println("1. Показать транспорт")
+        println("2. Добавить транспорт")
+        println("3. Открыть карточку транспорта")
+        println("0. Выход")
+        print("Выбери действие: ")
 
-    println("=== ${vehicle.name} ===")
-    println("Тип: ${vehicle.type}")
-    println("Модель: ${vehicle.manufacturer} ${vehicle.model}, ${vehicle.year}")
-    println("Госномер: ${vehicle.registrationNumber ?: "не указан"}")
-    println("Пробег: ${vehicle.currentMileage ?: "не указан"} км")
-    println()
-
-    println("История:")
-    events.forEach { event ->
-        println("- ${event.date}: ${event.title}")
-        println("  Тип: ${event.type}")
-        println("  Пробег: ${event.mileage ?: "не указан"} км")
-        println("  Стоимость: ${event.cost ?: "не указана"}")
-        println("  Магазин: ${event.shopName ?: "не указан"}")
-        println("  Комментарий: ${event.comment ?: "нет"}")
-
-        if (event.participants.isNotEmpty()) {
-            println("  Участники:")
-            event.participants.forEach { participant ->
-                println("  - ${participant.name}: ${participant.workDescription ?: "работа не описана"}")
+        when (readln().trim()) {
+            "1" -> printVehicleList(repository.getVehicles())
+            "2" -> {
+                val vehicle = readVehicle(idGenerator)
+                repository.addVehicle(vehicle)
+                println("Добавлено: ${vehicle.name}")
             }
+            "3" -> openVehicleCard(repository)
+            "0" -> {
+                println("До встречи!")
+                return
+            }
+            else -> println("Неизвестная команда.")
         }
     }
+}
 
-    println()
-    println("Планы:")
-    plans.forEach { plan ->
-        println("- ${plan.plannedDate}: ${plan.title}")
-        println("  Напомнить: ${plan.reminderDate ?: "не задано"}")
-        println("  Где купить: ${plan.placeToBuy ?: "не указано"}")
-        println("  Комментарий: ${plan.comment ?: "нет"}")
+private fun openVehicleCard(repository: RemkaRepository) {
+    val vehicles = repository.getVehicles()
+
+    if (vehicles.isEmpty()) {
+        println("Сначала добавь транспорт.")
+        return
     }
+
+    printVehicleList(vehicles)
+    print("Введи номер транспорта: ")
+
+    val index = readln().trim().toIntOrNull()
+    if (index == null || index !in 1..vehicles.size) {
+        println("Такого номера нет.")
+        return
+    }
+
+    val vehicle = vehicles[index - 1]
+    printVehicleCard(repository, vehicle.id)
 }
