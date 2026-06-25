@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,10 +33,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -100,6 +101,9 @@ private fun RemkaApp() {
     var selectedEventId by remember { mutableStateOf<String?>(null) }
     var selectedPlanId by remember { mutableStateOf<String?>(null) }
     var selectedFolderId by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteTitle by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteText by remember { mutableStateOf<String?>(null) }
+    var pendingDeleteAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val vehicles = remember {
         mutableStateListOf<Vehicle>().apply {
             addAll(initialSnapshot.vehicles)
@@ -136,6 +140,29 @@ private fun RemkaApp() {
             vehicles[index] = vehicles[index].copy(updatedAt = todayText())
         }
     }
+    fun requestDelete(title: String, text: String, action: () -> Unit) {
+        pendingDeleteTitle = title
+        pendingDeleteText = text
+        pendingDeleteAction = action
+    }
+
+    pendingDeleteAction?.let { action ->
+        ConfirmDeleteDialog(
+            title = pendingDeleteTitle ?: "Удалить?",
+            text = pendingDeleteText ?: "Это действие нельзя отменить.",
+            onDismiss = {
+                pendingDeleteTitle = null
+                pendingDeleteText = null
+                pendingDeleteAction = null
+            },
+            onConfirm = {
+                action()
+                pendingDeleteTitle = null
+                pendingDeleteText = null
+                pendingDeleteAction = null
+            }
+        )
+    }
 
     when (screen) {
         RemkaScreen.VehicleList -> VehicleListScreen(
@@ -160,16 +187,21 @@ private fun RemkaApp() {
                 screen = RemkaScreen.EditFolder
             },
             onDeleteFolder = { folder ->
-                folders.removeAll { existingFolder -> existingFolder.id == folder.id }
-                vehicles.indices.forEach { index ->
-                    if (vehicles[index].folderId == folder.id) {
-                        vehicles[index] = vehicles[index].copy(
-                            folderId = null,
-                            updatedAt = todayText()
-                        )
+                requestDelete(
+                    title = "Удалить папку?",
+                    text = "Папка «${folder.name}» будет удалена, а техника из неё вернётся в общий список."
+                ) {
+                    folders.removeAll { existingFolder -> existingFolder.id == folder.id }
+                    vehicles.indices.forEach { index ->
+                        if (vehicles[index].folderId == folder.id) {
+                            vehicles[index] = vehicles[index].copy(
+                                folderId = null,
+                                updatedAt = todayText()
+                            )
+                        }
                     }
+                    saveState()
                 }
-                saveState()
             },
             onTogglePinFolder = { folder ->
                 val index = folders.indexOfFirst { existingFolder -> existingFolder.id == folder.id }
@@ -302,30 +334,45 @@ private fun RemkaApp() {
                     onAddPlanClick = { screen = RemkaScreen.AddPlan },
                     onEditVehicleClick = { screen = RemkaScreen.EditVehicle },
                     onDeleteVehicleClick = {
-                        vehicles.removeAll { vehicle -> vehicle.id == selectedVehicle.id }
-                        events.removeAll { event -> event.vehicleId == selectedVehicle.id }
-                        plans.removeAll { plan -> plan.vehicleId == selectedVehicle.id }
-                        selectedVehicleId = null
-                        saveState()
-                        screen = RemkaScreen.VehicleList
+                        requestDelete(
+                            title = "Удалить транспорт?",
+                            text = "«${selectedVehicle.name}» и связанные записи будут удалены."
+                        ) {
+                            vehicles.removeAll { vehicle -> vehicle.id == selectedVehicle.id }
+                            events.removeAll { event -> event.vehicleId == selectedVehicle.id }
+                            plans.removeAll { plan -> plan.vehicleId == selectedVehicle.id }
+                            selectedVehicleId = null
+                            saveState()
+                            screen = RemkaScreen.VehicleList
+                        }
                     },
                     onEditEventClick = { event ->
                         selectedEventId = event.id
                         screen = RemkaScreen.EditEvent
                     },
                     onDeleteEventClick = { event ->
-                        events.removeAll { existingEvent -> existingEvent.id == event.id }
-                        touchVehicle(selectedVehicle.id)
-                        saveState()
+                        requestDelete(
+                            title = "Удалить запись?",
+                            text = "Запись «${event.title}» будет удалена из истории."
+                        ) {
+                            events.removeAll { existingEvent -> existingEvent.id == event.id }
+                            touchVehicle(selectedVehicle.id)
+                            saveState()
+                        }
                     },
                     onEditPlanClick = { plan ->
                         selectedPlanId = plan.id
                         screen = RemkaScreen.EditPlan
                     },
                     onDeletePlanClick = { plan ->
-                        plans.removeAll { existingPlan -> existingPlan.id == plan.id }
-                        touchVehicle(selectedVehicle.id)
-                        saveState()
+                        requestDelete(
+                            title = "Удалить план?",
+                            text = "План «${plan.title}» будет удалён."
+                        ) {
+                            plans.removeAll { existingPlan -> existingPlan.id == plan.id }
+                            touchVehicle(selectedVehicle.id)
+                            saveState()
+                        }
                     },
                     onPlanStatusChange = { plan, status ->
                         val index = plans.indexOfFirst { existingPlan -> existingPlan.id == plan.id }
@@ -452,6 +499,52 @@ private enum class RemkaScreen {
     EditPlan
 }
 
+private fun Modifier.revealActionsOnSwipe(
+    onStartToEnd: () -> Unit,
+    onEndToStart: () -> Unit
+): Modifier =
+    pointerInput(Unit) {
+        var dragTotal = 0f
+
+        detectHorizontalDragGestures(
+            onDragStart = {
+                dragTotal = 0f
+            },
+            onDragEnd = {
+                when {
+                    dragTotal > 48f -> onStartToEnd()
+                    dragTotal < -48f -> onEndToStart()
+                }
+            }
+        ) { _, dragAmount ->
+            dragTotal += dragAmount
+        }
+    }
+
+@Composable
+private fun ConfirmDeleteDialog(
+    title: String,
+    text: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Удалить")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
+}
+
 @Composable
 private fun VehicleListScreen(
     vehicles: List<Vehicle>,
@@ -507,12 +600,6 @@ private fun VehicleListScreen(
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (folders.isNotEmpty()) {
-                item {
-                    SectionTitle("Папки")
-                }
-            }
-
             items(folders, key = { folder -> folder.id }) { folder ->
                 FolderCard(
                     folder = folder,
@@ -752,100 +839,86 @@ private fun FolderCard(
     onTogglePinClick: () -> Unit
 ) {
     var revealedAction by remember { mutableStateOf<String?>(null) }
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            revealedAction = when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> "manage"
-                SwipeToDismissBoxValue.EndToStart -> "delete"
-                SwipeToDismissBoxValue.Settled -> null
-            }
-            false
-        }
-    )
-
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {},
-        enableDismissFromStartToEnd = true,
-        enableDismissFromEndToStart = true
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .revealActionsOnSwipe(
+                onStartToEnd = { revealedAction = "manage" },
+                onEndToStart = { revealedAction = "delete" }
+            )
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = if (folder.isPinned) "${folder.name} *" else folder.name,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF0F172A)
-                        )
-                        Text(
-                            text = "$vehicleCount ед. техники",
-                            color = Color(0xFF64748B),
-                            fontSize = 13.sp
-                        )
-                    }
-
                     Text(
-                        text = ">",
+                        text = if (folder.isPinned) "${folder.name} *" else folder.name,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = "$vehicleCount ед. техники",
                         color = Color(0xFF64748B),
-                        fontSize = 18.sp
+                        fontSize = 13.sp
                     )
                 }
 
-                if (revealedAction == "manage") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                revealedAction = null
-                                onRenameClick()
-                            }
-                        ) {
-                            Text("Переименовать")
-                        }
+                Text(
+                    text = ">",
+                    color = Color(0xFF64748B),
+                    fontSize = 18.sp
+                )
+            }
 
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                revealedAction = null
-                                onTogglePinClick()
-                            }
-                        ) {
-                            Text(if (folder.isPinned) "Открепить" else "Закрепить")
-                        }
-                    }
-                }
-
-                if (revealedAction == "delete") {
+            if (revealedAction == "manage") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.weight(1f),
                         onClick = {
                             revealedAction = null
-                            onDeleteClick()
+                            onRenameClick()
                         }
                     ) {
-                        Text("Удалить папку")
+                        Text("Переименовать")
                     }
+
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            revealedAction = null
+                            onTogglePinClick()
+                        }
+                    ) {
+                        Text(if (folder.isPinned) "Открепить" else "Закрепить")
+                    }
+                }
+            }
+
+            if (revealedAction == "delete") {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        revealedAction = null
+                        onDeleteClick()
+                    }
+                ) {
+                    Text("Удалить папку")
                 }
             }
         }
@@ -1830,69 +1903,56 @@ private fun EventCard(
     onDeleteClick: () -> Unit
 ) {
     var revealedAction by remember { mutableStateOf<String?>(null) }
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            revealedAction = when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> "edit"
-                SwipeToDismissBoxValue.EndToStart -> "delete"
-                SwipeToDismissBoxValue.Settled -> null
-            }
-            false
-        }
-    )
-
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {},
-        enableDismissFromStartToEnd = true,
-        enableDismissFromEndToStart = true
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .revealActionsOnSwipe(
+                onStartToEnd = { revealedAction = "edit" },
+                onEndToStart = { revealedAction = "delete" }
+            ),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = event.title,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF0F172A)
-                )
-                Text(
-                    text = "${event.date} · ${event.type.displayName()}",
-                    color = Color(0xFF64748B),
-                    fontSize = 13.sp
-                )
-                DetailLine("Пробег", event.mileage?.let { "$it км" } ?: "не указан")
-                DetailLine("Стоимость", event.cost?.let { "$it" } ?: "не указана")
-                DetailLine("Комментарий", event.comment ?: "нет")
+            Text(
+                text = event.title,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF0F172A)
+            )
+            Text(
+                text = "${event.date} · ${event.type.displayName()}",
+                color = Color(0xFF64748B),
+                fontSize = 13.sp
+            )
+            DetailLine("Пробег", event.mileage?.let { "$it км" } ?: "не указан")
+            DetailLine("Стоимость", event.cost?.let { "$it" } ?: "не указана")
+            DetailLine("Комментарий", event.comment ?: "нет")
 
-                if (revealedAction == "edit") {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            revealedAction = null
-                            onEditClick()
-                        }
-                    ) {
-                        Text("Изменить")
+            if (revealedAction == "edit") {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        revealedAction = null
+                        onEditClick()
                     }
+                ) {
+                    Text("Изменить")
                 }
+            }
 
-                if (revealedAction == "delete") {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            revealedAction = null
-                            onDeleteClick()
-                        }
-                    ) {
-                        Text("Удалить")
+            if (revealedAction == "delete") {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        revealedAction = null
+                        onDeleteClick()
                     }
+                ) {
+                    Text("Удалить")
                 }
             }
         }
@@ -1907,97 +1967,84 @@ private fun PlanCard(
     onStatusChange: (MaintenancePlanStatus) -> Unit
 ) {
     var revealedAction by remember { mutableStateOf<String?>(null) }
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            revealedAction = when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> "edit"
-                SwipeToDismissBoxValue.EndToStart -> "delete"
-                SwipeToDismissBoxValue.Settled -> null
-            }
-            false
-        }
-    )
-
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {},
-        enableDismissFromStartToEnd = true,
-        enableDismissFromEndToStart = true
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .revealActionsOnSwipe(
+                onStartToEnd = { revealedAction = "edit" },
+                onEndToStart = { revealedAction = "delete" }
+            ),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = plan.title,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF0F172A)
-                )
-                Text(
-                    text = "${plan.plannedDate} · ${plan.status.displayName()}",
-                    color = Color(0xFF64748B),
-                    fontSize = 13.sp
-                )
-                DetailLine("Напомнить", plan.reminderDate ?: "не задано")
-                DetailLine("Пробег", plan.targetMileage?.let { "$it км" } ?: "не указан")
-                DetailLine("Комментарий", plan.comment ?: "нет")
+            Text(
+                text = plan.title,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF0F172A)
+            )
+            Text(
+                text = "${plan.plannedDate} · ${plan.status.displayName()}",
+                color = Color(0xFF64748B),
+                fontSize = 13.sp
+            )
+            DetailLine("Напомнить", plan.reminderDate ?: "не задано")
+            DetailLine("Пробег", plan.targetMileage?.let { "$it км" } ?: "не указан")
+            DetailLine("Комментарий", plan.comment ?: "нет")
 
-                if (revealedAction == "edit") {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            revealedAction = null
-                            onEditClick()
-                        }
+            if (revealedAction == "edit") {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        revealedAction = null
+                        onEditClick()
+                    }
+                ) {
+                    Text("Изменить")
+                }
+            }
+
+            if (revealedAction == "delete") {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        revealedAction = null
+                        onDeleteClick()
+                    }
+                ) {
+                    Text("Удалить")
+                }
+            }
+
+            if (plan.status == MaintenancePlanStatus.PLANNED) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = { onStatusChange(MaintenancePlanStatus.DONE) }
                     ) {
-                        Text("Изменить")
+                        Text("Выполнен")
+                    }
+
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = { onStatusChange(MaintenancePlanStatus.CANCELLED) }
+                    ) {
+                        Text("Отменить")
                     }
                 }
-
-                if (revealedAction == "delete") {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            revealedAction = null
-                            onDeleteClick()
-                        }
-                    ) {
-                        Text("Удалить")
-                    }
-                }
-
-                if (plan.status == MaintenancePlanStatus.PLANNED) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            modifier = Modifier.weight(1f),
-                            onClick = { onStatusChange(MaintenancePlanStatus.DONE) }
-                        ) {
-                            Text("Выполнен")
-                        }
-
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = { onStatusChange(MaintenancePlanStatus.CANCELLED) }
-                        ) {
-                            Text("Отменить")
-                        }
-                    }
-                } else {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { onStatusChange(MaintenancePlanStatus.PLANNED) }
-                    ) {
-                        Text("Вернуть в план")
-                    }
+            } else {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onStatusChange(MaintenancePlanStatus.PLANNED) }
+                ) {
+                    Text("Вернуть в план")
                 }
             }
         }
