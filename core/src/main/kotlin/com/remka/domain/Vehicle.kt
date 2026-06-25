@@ -22,5 +22,7 @@ data class Vehicle(
     val model: String? = null,
     val year: Int? = null,
     val registrationNumber: String? = null,
-    val currentMileage: Long? = null
+    val currentMileage: Long? = null,
+    val folderId: String? = null,
+    val updatedAt: String = ""
 )

@@ -54,7 +54,9 @@ import com.remka.domain.MaintenancePlanStatus
 import com.remka.domain.Vehicle
 import com.remka.domain.VehicleEvent
 import com.remka.domain.VehicleEventType
+import com.remka.domain.VehicleFolder
 import com.remka.domain.VehicleType
+import java.time.LocalDate
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -94,6 +96,7 @@ private fun RemkaApp() {
     var selectedVehicleId by remember { mutableStateOf<String?>(null) }
     var selectedEventId by remember { mutableStateOf<String?>(null) }
     var selectedPlanId by remember { mutableStateOf<String?>(null) }
+    var selectedFolderId by remember { mutableStateOf<String?>(null) }
     val vehicles = remember {
         mutableStateListOf<Vehicle>().apply {
             addAll(initialSnapshot.vehicles)
@@ -109,20 +112,46 @@ private fun RemkaApp() {
             addAll(initialSnapshot.plans)
         }
     }
+    val folders = remember {
+        mutableStateListOf<VehicleFolder>().apply {
+            addAll(initialSnapshot.folders)
+        }
+    }
     fun saveState() {
         store.save(
             RemkaSnapshot(
                 vehicles = vehicles.toList(),
                 events = events.toList(),
-                plans = plans.toList()
+                plans = plans.toList(),
+                folders = folders.toList()
             )
         )
+    }
+    fun touchVehicle(vehicleId: String) {
+        val index = vehicles.indexOfFirst { vehicle -> vehicle.id == vehicleId }
+        if (index != -1) {
+            vehicles[index] = vehicles[index].copy(updatedAt = todayText())
+        }
     }
 
     when (screen) {
         RemkaScreen.VehicleList -> VehicleListScreen(
-            vehicles = vehicles,
+            vehicles = vehicles.sortedByDescending { vehicle -> vehicle.updatedAt },
+            folders = folders,
+            selectedFolderId = selectedFolderId,
             onAddVehicleClick = { screen = RemkaScreen.AddVehicle },
+            onJournalClick = { screen = RemkaScreen.Journal },
+            onFolderSelected = { folderId -> selectedFolderId = folderId },
+            onAddFolder = { folderName ->
+                folders.add(
+                    VehicleFolder(
+                        id = UUID.randomUUID().toString(),
+                        name = folderName.trim(),
+                        createdAt = todayText()
+                    )
+                )
+                saveState()
+            },
             onVehicleClick = { vehicle ->
                 selectedVehicleId = vehicle.id
                 screen = RemkaScreen.VehicleDetails
@@ -144,9 +173,10 @@ private fun RemkaApp() {
 
         RemkaScreen.AddVehicle -> AddVehicleScreen(
             vehicleToEdit = null,
+            folders = folders,
             onBack = { screen = RemkaScreen.VehicleList },
             onSave = { vehicle ->
-                vehicles.add(vehicle)
+                vehicles.add(vehicle.copy(updatedAt = todayText()))
                 saveState()
                 screen = RemkaScreen.VehicleList
             }
@@ -160,11 +190,12 @@ private fun RemkaApp() {
             } else {
                 AddVehicleScreen(
                     vehicleToEdit = vehicleToEdit,
+                    folders = folders,
                     onBack = { screen = RemkaScreen.VehicleList },
                     onSave = { vehicle ->
                         val index = vehicles.indexOfFirst { existingVehicle -> existingVehicle.id == vehicle.id }
                         if (index != -1) {
-                            vehicles[index] = vehicle
+                            vehicles[index] = vehicle.copy(updatedAt = todayText())
                             saveState()
                         }
                         screen = RemkaScreen.VehicleList
@@ -201,6 +232,7 @@ private fun RemkaApp() {
                     },
                     onDeleteEventClick = { event ->
                         events.removeAll { existingEvent -> existingEvent.id == event.id }
+                        touchVehicle(selectedVehicle.id)
                         saveState()
                     },
                     onEditPlanClick = { plan ->
@@ -209,12 +241,14 @@ private fun RemkaApp() {
                     },
                     onDeletePlanClick = { plan ->
                         plans.removeAll { existingPlan -> existingPlan.id == plan.id }
+                        touchVehicle(selectedVehicle.id)
                         saveState()
                     },
                     onPlanStatusChange = { plan, status ->
                         val index = plans.indexOfFirst { existingPlan -> existingPlan.id == plan.id }
                         if (index != -1) {
                             plans[index] = plan.copy(status = status)
+                            touchVehicle(plan.vehicleId)
                             saveState()
                         }
                     }
@@ -234,6 +268,7 @@ private fun RemkaApp() {
                     onBack = { screen = RemkaScreen.VehicleDetails },
                     onSave = { event ->
                         events.add(event)
+                        touchVehicle(event.vehicleId)
                         saveState()
                         screen = RemkaScreen.VehicleDetails
                     }
@@ -256,6 +291,7 @@ private fun RemkaApp() {
                         val index = events.indexOfFirst { existingEvent -> existingEvent.id == event.id }
                         if (index != -1) {
                             events[index] = event
+                            touchVehicle(event.vehicleId)
                             saveState()
                         }
                         screen = RemkaScreen.VehicleDetails
@@ -276,6 +312,7 @@ private fun RemkaApp() {
                     onBack = { screen = RemkaScreen.VehicleDetails },
                     onSave = { plan ->
                         plans.add(plan)
+                        touchVehicle(plan.vehicleId)
                         saveState()
                         screen = RemkaScreen.VehicleDetails
                     }
@@ -298,6 +335,7 @@ private fun RemkaApp() {
                         val index = plans.indexOfFirst { existingPlan -> existingPlan.id == plan.id }
                         if (index != -1) {
                             plans[index] = plan
+                            touchVehicle(plan.vehicleId)
                             saveState()
                         }
                         screen = RemkaScreen.VehicleDetails
@@ -305,11 +343,19 @@ private fun RemkaApp() {
                 )
             }
         }
+
+        RemkaScreen.Journal -> JournalScreen(
+            vehicles = vehicles,
+            events = events,
+            plans = plans,
+            onBack = { screen = RemkaScreen.VehicleList }
+        )
     }
 }
 
 private enum class RemkaScreen {
     VehicleList,
+    Journal,
     AddVehicle,
     EditVehicle,
     VehicleDetails,
@@ -319,14 +365,31 @@ private enum class RemkaScreen {
     EditPlan
 }
 
+private const val NO_FOLDER_ID = "__no_folder__"
+
 @Composable
 private fun VehicleListScreen(
     vehicles: List<Vehicle>,
+    folders: List<VehicleFolder>,
+    selectedFolderId: String?,
     onAddVehicleClick: () -> Unit,
+    onJournalClick: () -> Unit,
+    onFolderSelected: (String?) -> Unit,
+    onAddFolder: (String) -> Unit,
     onVehicleClick: (Vehicle) -> Unit,
     onEditVehicleClick: (Vehicle) -> Unit,
     onDeleteVehicleClick: (Vehicle) -> Unit
 ) {
+    var folderName by remember { mutableStateOf("") }
+    val visibleVehicles = vehicles.filter { vehicle ->
+        selectedFolderId == null ||
+            if (selectedFolderId == NO_FOLDER_ID) {
+                vehicle.folderId == null
+            } else {
+                vehicle.folderId == selectedFolderId
+            }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -350,10 +413,17 @@ private fun VehicleListScreen(
                 )
             }
 
-            Button(
-                onClick = onAddVehicleClick
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Добавить")
+                OutlinedButton(onClick = onJournalClick) {
+                    Text("Журнал")
+                }
+
+                Button(onClick = onAddVehicleClick) {
+                    Text("Добавить")
+                }
             }
         }
 
@@ -362,22 +432,294 @@ private fun VehicleListScreen(
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(vehicles, key = { vehicle -> vehicle.id }) { vehicle ->
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Папки",
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF0F172A)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = { onFolderSelected(null) }
+                            ) {
+                                Text(if (selectedFolderId == null) "Все *" else "Все")
+                            }
+
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = { onFolderSelected(NO_FOLDER_ID) }
+                            ) {
+                                Text(if (selectedFolderId == NO_FOLDER_ID) "Без папки *" else "Без папки")
+                            }
+                        }
+
+                        folders.forEach { folder ->
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { onFolderSelected(folder.id) }
+                            ) {
+                                Text(if (selectedFolderId == folder.id) "${folder.name} *" else folder.name)
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                modifier = Modifier.weight(1f),
+                                value = folderName,
+                                onValueChange = { folderName = it },
+                                label = { Text("Новая папка") },
+                                singleLine = true
+                            )
+
+                            Button(
+                                enabled = folderName.isNotBlank(),
+                                onClick = {
+                                    onAddFolder(folderName)
+                                    folderName = ""
+                                }
+                            ) {
+                                Text("Создать")
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (visibleVehicles.isEmpty()) {
+                item {
+                    EmptyText("В этой папке техники пока нет")
+                }
+            } else {
+                items(visibleVehicles, key = { vehicle -> vehicle.id }) { vehicle ->
                 VehicleCard(
                     vehicle = vehicle,
+                    folderName = folders.firstOrNull { folder -> folder.id == vehicle.folderId }?.name,
                     onClick = { onVehicleClick(vehicle) },
                     onEditClick = { onEditVehicleClick(vehicle) },
                     onDeleteClick = { onDeleteVehicleClick(vehicle) }
                 )
+                }
             }
         }
     }
 }
 
+@Composable
+private fun JournalScreen(
+    vehicles: List<Vehicle>,
+    events: List<VehicleEvent>,
+    plans: List<MaintenancePlan>,
+    onBack: () -> Unit
+) {
+    var dateFrom by remember { mutableStateOf(todayText()) }
+    var dateTo by remember { mutableStateOf(todayText()) }
+    val vehicleNames = vehicles.associate { vehicle -> vehicle.id to vehicle.name }
+    val journalEvents = events
+        .filter { event -> event.date.isDateInRange(dateFrom, dateTo) }
+        .map { event ->
+            JournalEntry(
+                date = event.date,
+                title = event.title,
+                vehicleName = vehicleNames[event.vehicleId] ?: "Техника удалена",
+                type = event.type.displayName(),
+                details = listOfNotNull(
+                    event.mileage?.let { mileage -> "$mileage км" },
+                    event.cost?.let { cost -> "$cost" },
+                    event.shopName
+                ).joinToString(" · ").ifBlank { event.comment ?: "Без деталей" }
+            )
+        }
+    val journalPlans = plans
+        .filter { plan -> plan.plannedDate.isDateInRange(dateFrom, dateTo) }
+        .map { plan ->
+            JournalEntry(
+                date = plan.plannedDate,
+                title = plan.title,
+                vehicleName = vehicleNames[plan.vehicleId] ?: "Техника удалена",
+                type = "План: ${plan.status.displayName()}",
+                details = listOfNotNull(
+                    plan.reminderDate?.let { reminder -> "напомнить $reminder" },
+                    plan.targetMileage?.let { mileage -> "$mileage км" },
+                    plan.placeToBuy,
+                    plan.responsiblePerson
+                ).joinToString(" · ").ifBlank { plan.comment ?: "Без деталей" }
+            )
+        }
+    val entries = (journalEvents + journalPlans).sortedByDescending { entry -> entry.date }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Журнал",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = "Что делали по датам",
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                OutlinedButton(onClick = onBack) {
+                    Text("Назад")
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Период",
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF0F172A)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            modifier = Modifier.weight(1f),
+                            value = dateFrom,
+                            onValueChange = { dateFrom = it },
+                            label = { Text("С") },
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            modifier = Modifier.weight(1f),
+                            value = dateTo,
+                            onValueChange = { dateTo = it },
+                            label = { Text("По") },
+                            singleLine = true
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val yesterday = LocalDate.now().minusDays(1).toString()
+                                dateFrom = yesterday
+                                dateTo = yesterday
+                            }
+                        ) {
+                            Text("Вчера")
+                        }
+
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                dateFrom = todayText()
+                                dateTo = todayText()
+                            }
+                        ) {
+                            Text("Сегодня")
+                        }
+                    }
+                }
+            }
+        }
+
+        if (entries.isEmpty()) {
+            item {
+                EmptyText("За этот период записей нет")
+            }
+        } else {
+            items(entries, key = { entry -> "${entry.date}-${entry.vehicleName}-${entry.title}" }) { entry ->
+                JournalCard(entry = entry)
+            }
+        }
+    }
+}
+
+@Composable
+private fun JournalCard(entry: JournalEntry) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = entry.title,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF0F172A)
+            )
+            Text(
+                text = "${entry.date} · ${entry.vehicleName} · ${entry.type}",
+                color = Color(0xFF64748B),
+                fontSize = 13.sp
+            )
+            Text(
+                text = entry.details,
+                color = Color(0xFF334155)
+            )
+        }
+    }
+}
+
+private data class JournalEntry(
+    val date: String,
+    val title: String,
+    val vehicleName: String,
+    val type: String,
+    val details: String
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddVehicleScreen(
     vehicleToEdit: Vehicle?,
+    folders: List<VehicleFolder>,
     onBack: () -> Unit,
     onSave: (Vehicle) -> Unit
 ) {
@@ -389,6 +731,8 @@ private fun AddVehicleScreen(
     var registrationNumber by remember { mutableStateOf(vehicleToEdit?.registrationNumber ?: "") }
     var mileage by remember { mutableStateOf(vehicleToEdit?.currentMileage?.toString() ?: "") }
     var typeMenuExpanded by remember { mutableStateOf(false) }
+    var folderMenuExpanded by remember { mutableStateOf(false) }
+    var folderId by remember { mutableStateOf(vehicleToEdit?.folderId) }
 
     val canSave = name.isNotBlank()
 
@@ -452,6 +796,49 @@ private fun AddVehicleScreen(
                             onClick = {
                                 type = vehicleType
                                 typeMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            ExposedDropdownMenuBox(
+                expanded = folderMenuExpanded,
+                onExpandedChange = { folderMenuExpanded = !folderMenuExpanded }
+            ) {
+                OutlinedTextField(
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                        .fillMaxWidth(),
+                    value = folders.firstOrNull { folder -> folder.id == folderId }?.name ?: "Без папки",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Папка") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = folderMenuExpanded)
+                    }
+                )
+
+                ExposedDropdownMenu(
+                    expanded = folderMenuExpanded,
+                    onDismissRequest = { folderMenuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Без папки") },
+                        onClick = {
+                            folderId = null
+                            folderMenuExpanded = false
+                        }
+                    )
+
+                    folders.forEach { folder ->
+                        DropdownMenuItem(
+                            text = { Text(folder.name) },
+                            onClick = {
+                                folderId = folder.id
+                                folderMenuExpanded = false
                             }
                         )
                     }
@@ -540,7 +927,9 @@ private fun AddVehicleScreen(
                             model = model.trim().ifBlank { null },
                             year = year.toIntOrNull(),
                             registrationNumber = registrationNumber.trim().ifBlank { null },
-                            currentMileage = mileage.toLongOrNull()
+                            currentMileage = mileage.toLongOrNull(),
+                            folderId = folderId,
+                            updatedAt = vehicleToEdit?.updatedAt ?: todayText()
                         )
                     )
                 }
@@ -1028,6 +1417,7 @@ private fun VehicleDetailsScreen(
 @Composable
 private fun VehicleCard(
     vehicle: Vehicle,
+    folderName: String?,
     onClick: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
@@ -1069,6 +1459,15 @@ private fun VehicleCard(
 
                 Text(
                     text = "Пробег: ${vehicle.currentMileage ?: "не указан"} км",
+                    color = Color(0xFF64748B),
+                    fontSize = 13.sp
+                )
+
+                Text(
+                    text = listOfNotNull(
+                        folderName?.let { folder -> "Папка: $folder" },
+                        vehicle.updatedAt.ifBlank { null }?.let { date -> "Изменено: $date" }
+                    ).joinToString(" · ").ifBlank { "Без папки" },
                     color = Color(0xFF64748B),
                     fontSize = 13.sp
                 )
@@ -1304,6 +1703,11 @@ private fun MaintenancePlanStatus.displayName(): String =
     }
 
 private fun demoSnapshot(): RemkaSnapshot {
+    val rostovFolder = VehicleFolder(
+        id = "demo-folder-rostov",
+        name = "Ростов",
+        createdAt = "2026-06-24"
+    )
     val motorcycle = Vehicle(
         id = "demo-motorcycle",
         type = VehicleType.MOTORCYCLE,
@@ -1312,10 +1716,13 @@ private fun demoSnapshot(): RemkaSnapshot {
         model = "CB400",
         year = 2007,
         registrationNumber = "A123BC",
-        currentMileage = 42000
+        currentMileage = 42000,
+        folderId = rostovFolder.id,
+        updatedAt = "2026-06-24"
     )
 
     return RemkaSnapshot(
+        folders = listOf(rostovFolder),
         vehicles = listOf(motorcycle),
         events = listOf(
             VehicleEvent(
@@ -1352,6 +1759,16 @@ private fun demoSnapshot(): RemkaSnapshot {
             )
         )
     )
+}
+
+private fun todayText(): String =
+    LocalDate.now().toString()
+
+private fun String.isDateInRange(dateFrom: String, dateTo: String): Boolean {
+    val start = dateFrom.trim()
+    val end = dateTo.trim()
+
+    return (start.isBlank() || this >= start) && (end.isBlank() || this <= end)
 }
 
 private fun String.onlyDigits(): String =

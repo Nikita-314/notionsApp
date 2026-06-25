@@ -5,12 +5,14 @@ import com.remka.domain.AttachmentOwnerType
 import com.remka.domain.MaintenancePlan
 import com.remka.domain.Vehicle
 import com.remka.domain.VehicleEvent
+import com.remka.domain.VehicleFolder
 
 class RemkaRepository {
     private val vehicles = mutableListOf<Vehicle>()
     private val events = mutableListOf<VehicleEvent>()
     private val plans = mutableListOf<MaintenancePlan>()
     private val attachments = mutableListOf<Attachment>()
+    private val folders = mutableListOf<VehicleFolder>()
 
     fun addVehicle(vehicle: Vehicle) {
         vehicles.add(vehicle)
@@ -26,6 +28,10 @@ class RemkaRepository {
 
     fun addAttachments(newAttachments: List<Attachment>) {
         attachments.addAll(newAttachments)
+    }
+
+    fun addFolder(folder: VehicleFolder) {
+        folders.add(folder)
     }
 
     fun updatePlan(updatedPlan: MaintenancePlan): Boolean {
@@ -51,6 +57,9 @@ class RemkaRepository {
 
         attachments.clear()
         attachments.addAll(snapshot.attachments)
+
+        folders.clear()
+        folders.addAll(snapshot.folders)
     }
 
     fun createSnapshot(): RemkaSnapshot =
@@ -58,10 +67,13 @@ class RemkaRepository {
             vehicles = vehicles.toList(),
             events = events.toList(),
             plans = plans.toList(),
-            attachments = attachments.toList()
+            attachments = attachments.toList(),
+            folders = folders.toList()
         )
 
     fun getVehicles(): List<Vehicle> = vehicles.toList()
+
+    fun getFolders(): List<VehicleFolder> = folders.toList()
 
     fun getVehicleById(vehicleId: String): Vehicle? =
         vehicles.firstOrNull { vehicle -> vehicle.id == vehicleId }
