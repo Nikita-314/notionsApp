@@ -31,7 +31,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -136,13 +139,61 @@ private fun RemkaApp() {
 
     when (screen) {
         RemkaScreen.VehicleList -> VehicleListScreen(
-            vehicles = vehicles.sortedByDescending { vehicle -> vehicle.updatedAt },
-            folders = folders,
-            selectedFolderId = selectedFolderId,
-            onAddVehicleClick = { screen = RemkaScreen.AddVehicle },
+            vehicles = vehicles
+                .filter { vehicle -> vehicle.folderId == null }
+                .sortedByDescending { vehicle -> vehicle.updatedAt },
+            folders = folders.sortedWith(
+                compareByDescending<VehicleFolder> { folder -> folder.isPinned }
+                    .thenBy { folder -> folder.name.lowercase() }
+            ),
+            folderVehicleCounts = vehicles
+                .groupingBy { vehicle -> vehicle.folderId }
+                .eachCount(),
+            onAddClick = { screen = RemkaScreen.AddChoice },
             onJournalClick = { screen = RemkaScreen.Journal },
-            onFolderSelected = { folderId -> selectedFolderId = folderId },
-            onAddFolder = { folderName ->
+            onFolderClick = { folder ->
+                selectedFolderId = folder.id
+                screen = RemkaScreen.FolderDetails
+            },
+            onRenameFolder = { folder ->
+                selectedFolderId = folder.id
+                screen = RemkaScreen.EditFolder
+            },
+            onDeleteFolder = { folder ->
+                folders.removeAll { existingFolder -> existingFolder.id == folder.id }
+                vehicles.indices.forEach { index ->
+                    if (vehicles[index].folderId == folder.id) {
+                        vehicles[index] = vehicles[index].copy(
+                            folderId = null,
+                            updatedAt = todayText()
+                        )
+                    }
+                }
+                saveState()
+            },
+            onTogglePinFolder = { folder ->
+                val index = folders.indexOfFirst { existingFolder -> existingFolder.id == folder.id }
+                if (index != -1) {
+                    folders[index] = folders[index].copy(isPinned = !folders[index].isPinned)
+                    saveState()
+                }
+            },
+            onVehicleClick = { vehicle ->
+                selectedVehicleId = vehicle.id
+                screen = RemkaScreen.VehicleDetails
+            }
+        )
+
+        RemkaScreen.AddChoice -> AddChoiceScreen(
+            onBack = { screen = RemkaScreen.VehicleList },
+            onAddVehicleClick = { screen = RemkaScreen.AddVehicle },
+            onAddFolderClick = { screen = RemkaScreen.AddFolder }
+        )
+
+        RemkaScreen.AddFolder -> FolderFormScreen(
+            folderToEdit = null,
+            onBack = { screen = RemkaScreen.VehicleList },
+            onSave = { folderName ->
                 folders.add(
                     VehicleFolder(
                         id = UUID.randomUUID().toString(),
@@ -151,25 +202,50 @@ private fun RemkaApp() {
                     )
                 )
                 saveState()
-            },
-            onVehicleClick = { vehicle ->
-                selectedVehicleId = vehicle.id
-                screen = RemkaScreen.VehicleDetails
-            },
-            onEditVehicleClick = { vehicle ->
-                selectedVehicleId = vehicle.id
-                screen = RemkaScreen.EditVehicle
-            },
-            onDeleteVehicleClick = { vehicle ->
-                vehicles.removeAll { existingVehicle -> existingVehicle.id == vehicle.id }
-                events.removeAll { event -> event.vehicleId == vehicle.id }
-                plans.removeAll { plan -> plan.vehicleId == vehicle.id }
-                if (selectedVehicleId == vehicle.id) {
-                    selectedVehicleId = null
-                }
-                saveState()
+                screen = RemkaScreen.VehicleList
             }
         )
+
+        RemkaScreen.EditFolder -> {
+            val folderToEdit = folders.firstOrNull { folder -> folder.id == selectedFolderId }
+
+            if (folderToEdit == null) {
+                screen = RemkaScreen.VehicleList
+            } else {
+                FolderFormScreen(
+                    folderToEdit = folderToEdit,
+                    onBack = { screen = RemkaScreen.VehicleList },
+                    onSave = { folderName ->
+                        val index = folders.indexOfFirst { folder -> folder.id == folderToEdit.id }
+                        if (index != -1) {
+                            folders[index] = folders[index].copy(name = folderName.trim())
+                            saveState()
+                        }
+                        screen = RemkaScreen.VehicleList
+                    }
+                )
+            }
+        }
+
+        RemkaScreen.FolderDetails -> {
+            val selectedFolder = folders.firstOrNull { folder -> folder.id == selectedFolderId }
+
+            if (selectedFolder == null) {
+                screen = RemkaScreen.VehicleList
+            } else {
+                FolderDetailsScreen(
+                    folder = selectedFolder,
+                    vehicles = vehicles
+                        .filter { vehicle -> vehicle.folderId == selectedFolder.id }
+                        .sortedByDescending { vehicle -> vehicle.updatedAt },
+                    onBack = { screen = RemkaScreen.VehicleList },
+                    onVehicleClick = { vehicle ->
+                        selectedVehicleId = vehicle.id
+                        screen = RemkaScreen.VehicleDetails
+                    }
+                )
+            }
+        }
 
         RemkaScreen.AddVehicle -> AddVehicleScreen(
             vehicleToEdit = null,
@@ -214,7 +290,14 @@ private fun RemkaApp() {
                     vehicle = selectedVehicle,
                     events = events.filter { event -> event.vehicleId == selectedVehicle.id },
                     plans = plans.filter { plan -> plan.vehicleId == selectedVehicle.id },
-                    onBack = { screen = RemkaScreen.VehicleList },
+                    onBack = {
+                        if (selectedVehicle.folderId == null) {
+                            screen = RemkaScreen.VehicleList
+                        } else {
+                            selectedFolderId = selectedVehicle.folderId
+                            screen = RemkaScreen.FolderDetails
+                        }
+                    },
                     onAddEventClick = { screen = RemkaScreen.AddEvent },
                     onAddPlanClick = { screen = RemkaScreen.AddPlan },
                     onEditVehicleClick = { screen = RemkaScreen.EditVehicle },
@@ -356,6 +439,10 @@ private fun RemkaApp() {
 private enum class RemkaScreen {
     VehicleList,
     Journal,
+    AddChoice,
+    AddFolder,
+    EditFolder,
+    FolderDetails,
     AddVehicle,
     EditVehicle,
     VehicleDetails,
@@ -365,31 +452,19 @@ private enum class RemkaScreen {
     EditPlan
 }
 
-private const val NO_FOLDER_ID = "__no_folder__"
-
 @Composable
 private fun VehicleListScreen(
     vehicles: List<Vehicle>,
     folders: List<VehicleFolder>,
-    selectedFolderId: String?,
-    onAddVehicleClick: () -> Unit,
+    folderVehicleCounts: Map<String?, Int>,
+    onAddClick: () -> Unit,
     onJournalClick: () -> Unit,
-    onFolderSelected: (String?) -> Unit,
-    onAddFolder: (String) -> Unit,
-    onVehicleClick: (Vehicle) -> Unit,
-    onEditVehicleClick: (Vehicle) -> Unit,
-    onDeleteVehicleClick: (Vehicle) -> Unit
+    onFolderClick: (VehicleFolder) -> Unit,
+    onRenameFolder: (VehicleFolder) -> Unit,
+    onDeleteFolder: (VehicleFolder) -> Unit,
+    onTogglePinFolder: (VehicleFolder) -> Unit,
+    onVehicleClick: (Vehicle) -> Unit
 ) {
-    var folderName by remember { mutableStateOf("") }
-    val visibleVehicles = vehicles.filter { vehicle ->
-        selectedFolderId == null ||
-            if (selectedFolderId == NO_FOLDER_ID) {
-                vehicle.folderId == null
-            } else {
-                vehicle.folderId == selectedFolderId
-            }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -421,8 +496,8 @@ private fun VehicleListScreen(
                     Text("Журнал")
                 }
 
-                Button(onClick = onAddVehicleClick) {
-                    Text("Добавить")
+                Button(onClick = onAddClick) {
+                    Text("+")
                 }
             }
         }
@@ -432,91 +507,345 @@ private fun VehicleListScreen(
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "Папки",
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF0F172A)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                onClick = { onFolderSelected(null) }
-                            ) {
-                                Text(if (selectedFolderId == null) "Все *" else "Все")
-                            }
-
-                            OutlinedButton(
-                                modifier = Modifier.weight(1f),
-                                onClick = { onFolderSelected(NO_FOLDER_ID) }
-                            ) {
-                                Text(if (selectedFolderId == NO_FOLDER_ID) "Без папки *" else "Без папки")
-                            }
-                        }
-
-                        folders.forEach { folder ->
-                            OutlinedButton(
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = { onFolderSelected(folder.id) }
-                            ) {
-                                Text(if (selectedFolderId == folder.id) "${folder.name} *" else folder.name)
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                modifier = Modifier.weight(1f),
-                                value = folderName,
-                                onValueChange = { folderName = it },
-                                label = { Text("Новая папка") },
-                                singleLine = true
-                            )
-
-                            Button(
-                                enabled = folderName.isNotBlank(),
-                                onClick = {
-                                    onAddFolder(folderName)
-                                    folderName = ""
-                                }
-                            ) {
-                                Text("Создать")
-                            }
-                        }
-                    }
+            if (folders.isNotEmpty()) {
+                item {
+                    SectionTitle("Папки")
                 }
             }
 
-            if (visibleVehicles.isEmpty()) {
+            items(folders, key = { folder -> folder.id }) { folder ->
+                FolderCard(
+                    folder = folder,
+                    vehicleCount = folderVehicleCounts[folder.id] ?: 0,
+                    onClick = { onFolderClick(folder) },
+                    onRenameClick = { onRenameFolder(folder) },
+                    onDeleteClick = { onDeleteFolder(folder) },
+                    onTogglePinClick = { onTogglePinFolder(folder) }
+                )
+            }
+
+            item {
+                SectionTitle("Транспорт")
+            }
+
+            if (vehicles.isEmpty()) {
                 item {
-                    EmptyText("В этой папке техники пока нет")
+                    EmptyText("Техники без папки пока нет")
                 }
             } else {
-                items(visibleVehicles, key = { vehicle -> vehicle.id }) { vehicle ->
+                items(vehicles, key = { vehicle -> vehicle.id }) { vehicle ->
+                    VehicleCard(
+                        vehicle = vehicle,
+                        folderName = null,
+                        onClick = { onVehicleClick(vehicle) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddChoiceScreen(
+    onBack: () -> Unit,
+    onAddVehicleClick: () -> Unit,
+    onAddFolderClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Добавить",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A)
+                )
+                Text(
+                    text = "Выбери, что создаём",
+                    color = Color(0xFF64748B)
+                )
+            }
+
+            OutlinedButton(onClick = onBack) {
+                Text("Назад")
+            }
+        }
+
+        ActionCard(
+            title = "Новый транспорт",
+            subtitle = "Мотоцикл, машина, лодка или другое",
+            onClick = onAddVehicleClick
+        )
+
+        ActionCard(
+            title = "Новая папка",
+            subtitle = "Например Ростов, Гараж, Продажа",
+            onClick = onAddFolderClick
+        )
+    }
+}
+
+@Composable
+private fun ActionCard(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF0F172A)
+            )
+            Text(
+                text = subtitle,
+                color = Color(0xFF64748B),
+                fontSize = 13.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun FolderFormScreen(
+    folderToEdit: VehicleFolder?,
+    onBack: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var name by remember { mutableStateOf(folderToEdit?.name ?: "") }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = if (folderToEdit == null) "Новая папка" else "Переименовать папку",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = "Папки помогают не смешивать технику",
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                OutlinedButton(onClick = onBack) {
+                    Text("Назад")
+                }
+            }
+        }
+
+        item {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Название") },
+                singleLine = true
+            )
+        }
+
+        item {
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = name.isNotBlank(),
+                onClick = { onSave(name) }
+            ) {
+                Text("Сохранить")
+            }
+        }
+    }
+}
+
+@Composable
+private fun FolderDetailsScreen(
+    folder: VehicleFolder,
+    vehicles: List<Vehicle>,
+    onBack: () -> Unit,
+    onVehicleClick: (Vehicle) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = folder.name,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = if (folder.isPinned) "Закреплена" else "Папка техники",
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                OutlinedButton(onClick = onBack) {
+                    Text("Назад")
+                }
+            }
+        }
+
+        if (vehicles.isEmpty()) {
+            item {
+                EmptyText("В папке пока нет техники")
+            }
+        } else {
+            items(vehicles, key = { vehicle -> vehicle.id }) { vehicle ->
                 VehicleCard(
                     vehicle = vehicle,
-                    folderName = folders.firstOrNull { folder -> folder.id == vehicle.folderId }?.name,
-                    onClick = { onVehicleClick(vehicle) },
-                    onEditClick = { onEditVehicleClick(vehicle) },
-                    onDeleteClick = { onDeleteVehicleClick(vehicle) }
+                    folderName = folder.name,
+                    onClick = { onVehicleClick(vehicle) }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FolderCard(
+    folder: VehicleFolder,
+    vehicleCount: Int,
+    onClick: () -> Unit,
+    onRenameClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onTogglePinClick: () -> Unit
+) {
+    var revealedAction by remember { mutableStateOf<String?>(null) }
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            revealedAction = when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> "manage"
+                SwipeToDismissBoxValue.EndToStart -> "delete"
+                SwipeToDismissBoxValue.Settled -> null
+            }
+            false
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {},
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = if (folder.isPinned) "${folder.name} *" else folder.name,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF0F172A)
+                        )
+                        Text(
+                            text = "$vehicleCount ед. техники",
+                            color = Color(0xFF64748B),
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    Text(
+                        text = ">",
+                        color = Color(0xFF64748B),
+                        fontSize = 18.sp
+                    )
+                }
+
+                if (revealedAction == "manage") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                revealedAction = null
+                                onRenameClick()
+                            }
+                        ) {
+                            Text("Переименовать")
+                        }
+
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                revealedAction = null
+                                onTogglePinClick()
+                            }
+                        ) {
+                            Text(if (folder.isPinned) "Открепить" else "Закрепить")
+                        }
+                    }
+                }
+
+                if (revealedAction == "delete") {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            revealedAction = null
+                            onDeleteClick()
+                        }
+                    ) {
+                        Text("Удалить папку")
+                    }
                 }
             }
         }
@@ -1277,6 +1606,8 @@ private fun VehicleDetailsScreen(
     onDeletePlanClick: (MaintenancePlan) -> Unit,
     onPlanStatusChange: (MaintenancePlan, MaintenancePlanStatus) -> Unit
 ) {
+    var vehicleActionsVisible by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -1302,13 +1633,23 @@ private fun VehicleDetailsScreen(
                     )
                 }
 
-                OutlinedButton(onClick = onBack) {
-                    Text("Назад")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(onClick = { vehicleActionsVisible = !vehicleActionsVisible }) {
+                        Text("✎")
+                    }
+
+                    OutlinedButton(onClick = onBack) {
+                        Text("Назад")
+                    }
                 }
             }
         }
 
-        item {
+        if (vehicleActionsVisible) {
+            item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1326,6 +1667,7 @@ private fun VehicleDetailsScreen(
                 ) {
                     Text("Удалить")
                 }
+            }
             }
         }
 
@@ -1418,9 +1760,7 @@ private fun VehicleDetailsScreen(
 private fun VehicleCard(
     vehicle: Vehicle,
     folderName: String?,
-    onClick: () -> Unit,
-    onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -1480,26 +1820,6 @@ private fun VehicleCard(
             )
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                onClick = onEditClick
-            ) {
-                Text("Изменить")
-            }
-
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                onClick = onDeleteClick
-            ) {
-                Text("Удалить")
-            }
-        }
     }
 }
 
@@ -1509,46 +1829,70 @@ private fun EventCard(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = event.title,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF0F172A)
-            )
-            Text(
-                text = "${event.date} · ${event.type.displayName()}",
-                color = Color(0xFF64748B),
-                fontSize = 13.sp
-            )
-            DetailLine("Пробег", event.mileage?.let { "$it км" } ?: "не указан")
-            DetailLine("Стоимость", event.cost?.let { "$it" } ?: "не указана")
-            DetailLine("Комментарий", event.comment ?: "нет")
+    var revealedAction by remember { mutableStateOf<String?>(null) }
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            revealedAction = when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> "edit"
+                SwipeToDismissBoxValue.EndToStart -> "delete"
+                SwipeToDismissBoxValue.Settled -> null
+            }
+            false
+        }
+    )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {},
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                OutlinedButton(
-                    modifier = Modifier.weight(1f),
-                    onClick = onEditClick
-                ) {
-                    Text("Изменить")
+                Text(
+                    text = event.title,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF0F172A)
+                )
+                Text(
+                    text = "${event.date} · ${event.type.displayName()}",
+                    color = Color(0xFF64748B),
+                    fontSize = 13.sp
+                )
+                DetailLine("Пробег", event.mileage?.let { "$it км" } ?: "не указан")
+                DetailLine("Стоимость", event.cost?.let { "$it" } ?: "не указана")
+                DetailLine("Комментарий", event.comment ?: "нет")
+
+                if (revealedAction == "edit") {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            revealedAction = null
+                            onEditClick()
+                        }
+                    ) {
+                        Text("Изменить")
+                    }
                 }
 
-                OutlinedButton(
-                    modifier = Modifier.weight(1f),
-                    onClick = onDeleteClick
-                ) {
-                    Text("Удалить")
+                if (revealedAction == "delete") {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            revealedAction = null
+                            onDeleteClick()
+                        }
+                    ) {
+                        Text("Удалить")
+                    }
                 }
             }
         }
@@ -1562,74 +1906,98 @@ private fun PlanCard(
     onDeleteClick: () -> Unit,
     onStatusChange: (MaintenancePlanStatus) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = plan.title,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF0F172A)
-            )
-            Text(
-                text = "${plan.plannedDate} · ${plan.status.displayName()}",
-                color = Color(0xFF64748B),
-                fontSize = 13.sp
-            )
-            DetailLine("Напомнить", plan.reminderDate ?: "не задано")
-            DetailLine("Пробег", plan.targetMileage?.let { "$it км" } ?: "не указан")
-            DetailLine("Комментарий", plan.comment ?: "нет")
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    modifier = Modifier.weight(1f),
-                    onClick = onEditClick
-                ) {
-                    Text("Изменить")
-                }
-
-                OutlinedButton(
-                    modifier = Modifier.weight(1f),
-                    onClick = onDeleteClick
-                ) {
-                    Text("Удалить")
-                }
+    var revealedAction by remember { mutableStateOf<String?>(null) }
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            revealedAction = when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> "edit"
+                SwipeToDismissBoxValue.EndToStart -> "delete"
+                SwipeToDismissBoxValue.Settled -> null
             }
+            false
+        }
+    )
 
-            if (plan.status == MaintenancePlanStatus.PLANNED) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onStatusChange(MaintenancePlanStatus.DONE) }
-                    ) {
-                        Text("Выполнен")
-                    }
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {},
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = plan.title,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF0F172A)
+                )
+                Text(
+                    text = "${plan.plannedDate} · ${plan.status.displayName()}",
+                    color = Color(0xFF64748B),
+                    fontSize = 13.sp
+                )
+                DetailLine("Напомнить", plan.reminderDate ?: "не задано")
+                DetailLine("Пробег", plan.targetMileage?.let { "$it км" } ?: "не указан")
+                DetailLine("Комментарий", plan.comment ?: "нет")
 
+                if (revealedAction == "edit") {
                     OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onStatusChange(MaintenancePlanStatus.CANCELLED) }
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            revealedAction = null
+                            onEditClick()
+                        }
                     ) {
-                        Text("Отменить")
+                        Text("Изменить")
                     }
                 }
-            } else {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { onStatusChange(MaintenancePlanStatus.PLANNED) }
-                ) {
-                    Text("Вернуть в план")
+
+                if (revealedAction == "delete") {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            revealedAction = null
+                            onDeleteClick()
+                        }
+                    ) {
+                        Text("Удалить")
+                    }
+                }
+
+                if (plan.status == MaintenancePlanStatus.PLANNED) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = { onStatusChange(MaintenancePlanStatus.DONE) }
+                        ) {
+                            Text("Выполнен")
+                        }
+
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = { onStatusChange(MaintenancePlanStatus.CANCELLED) }
+                        ) {
+                            Text("Отменить")
+                        }
+                    }
+                } else {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onStatusChange(MaintenancePlanStatus.PLANNED) }
+                    ) {
+                        Text("Вернуть в план")
+                    }
                 }
             }
         }

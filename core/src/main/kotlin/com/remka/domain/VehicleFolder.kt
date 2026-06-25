@@ -6,5 +6,6 @@ import kotlinx.serialization.Serializable
 data class VehicleFolder(
     val id: String,
     val name: String,
-    val createdAt: String = ""
+    val createdAt: String = "",
+    val isPinned: Boolean = false
 )
