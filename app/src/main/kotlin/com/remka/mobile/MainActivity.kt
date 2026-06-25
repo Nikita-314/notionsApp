@@ -166,7 +166,13 @@ private fun RemkaApp() {
                     plans = plans.filter { plan -> plan.vehicleId == selectedVehicle.id },
                     onBack = { screen = RemkaScreen.VehicleList },
                     onAddEventClick = { screen = RemkaScreen.AddEvent },
-                    onAddPlanClick = { screen = RemkaScreen.AddPlan }
+                    onAddPlanClick = { screen = RemkaScreen.AddPlan },
+                    onPlanStatusChange = { plan, status ->
+                        val index = plans.indexOfFirst { existingPlan -> existingPlan.id == plan.id }
+                        if (index != -1) {
+                            plans[index] = plan.copy(status = status)
+                        }
+                    }
                 )
             }
         }
@@ -767,7 +773,8 @@ private fun VehicleDetailsScreen(
     plans: List<MaintenancePlan>,
     onBack: () -> Unit,
     onAddEventClick: () -> Unit,
-    onAddPlanClick: () -> Unit
+    onAddPlanClick: () -> Unit,
+    onPlanStatusChange: (MaintenancePlan, MaintenancePlanStatus) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -870,7 +877,10 @@ private fun VehicleDetailsScreen(
             }
         } else {
             items(plans, key = { plan -> plan.id }) { plan ->
-                PlanCard(plan = plan)
+                PlanCard(
+                    plan = plan,
+                    onStatusChange = { status -> onPlanStatusChange(plan, status) }
+                )
             }
         }
     }
@@ -962,7 +972,10 @@ private fun EventCard(event: VehicleEvent) {
 }
 
 @Composable
-private fun PlanCard(plan: MaintenancePlan) {
+private fun PlanCard(
+    plan: MaintenancePlan,
+    onStatusChange: (MaintenancePlanStatus) -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
@@ -986,6 +999,34 @@ private fun PlanCard(plan: MaintenancePlan) {
             DetailLine("Напомнить", plan.reminderDate ?: "не задано")
             DetailLine("Пробег", plan.targetMileage?.let { "$it км" } ?: "не указан")
             DetailLine("Комментарий", plan.comment ?: "нет")
+
+            if (plan.status == MaintenancePlanStatus.PLANNED) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = { onStatusChange(MaintenancePlanStatus.DONE) }
+                    ) {
+                        Text("Выполнен")
+                    }
+
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = { onStatusChange(MaintenancePlanStatus.CANCELLED) }
+                    ) {
+                        Text("Отменить")
+                    }
+                }
+            } else {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onStatusChange(MaintenancePlanStatus.PLANNED) }
+                ) {
+                    Text("Вернуть в план")
+                }
+            }
         }
     }
 }
