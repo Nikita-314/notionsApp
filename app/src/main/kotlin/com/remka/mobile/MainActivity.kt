@@ -3,6 +3,11 @@ package com.remka.mobile
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -15,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +41,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -45,6 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +71,19 @@ import com.remka.domain.VehicleType
 import java.time.LocalDate
 import java.util.UUID
 
+private val PremiumInk = Color(0xFF17211D)
+private val PremiumMuted = Color(0xFF64736B)
+private val PremiumLine = Color(0xFFE3E9E4)
+private val PremiumCard = Color(0xF7FFFFFF)
+private val PremiumCardSoft = Color(0xEFFFFFFF)
+private val PremiumAccent = Color(0xFF0F7A5A)
+private val PremiumAccentSoft = Color(0xFFE6F4EE)
+private val PremiumGold = Color(0xFFC8943F)
+private val PremiumGoldSoft = Color(0xFFFFF4DD)
+private val PremiumDanger = Color(0xFFB84A4A)
+private val PremiumBgTop = Color(0xFFF7FAF7)
+private val PremiumBgBottom = Color(0xFFEFF4F0)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,13 +98,84 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun RemkaTheme(content: @Composable () -> Unit) {
-    MaterialTheme {
+    MaterialTheme(
+        colorScheme = lightColorScheme(
+            primary = PremiumAccent,
+            onPrimary = Color.White,
+            secondary = PremiumGold,
+            surface = PremiumCard,
+            onSurface = PremiumInk,
+            background = PremiumBgTop,
+            onBackground = PremiumInk,
+            outline = PremiumLine,
+            error = PremiumDanger
+        )
+    ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = Color(0xFFF8FAFC)
+            color = Color.Transparent
         ) {
-            content()
+            PremiumBackground {
+                content()
+            }
         }
+    }
+}
+
+@Composable
+private fun PremiumBackground(content: @Composable () -> Unit) {
+    val transition = rememberInfiniteTransition(label = "premium-background")
+    val driftOne by transition.animateFloat(
+        initialValue = -18f,
+        targetValue = 18f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 7200),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "drift-one"
+    )
+    val driftTwo by transition.animateFloat(
+        initialValue = 20f,
+        targetValue = -14f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 9000),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "drift-two"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(PremiumBgTop, PremiumBgBottom)
+                )
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .offset(x = (-84).dp + driftOne.dp, y = 48.dp)
+                .size(220.dp)
+                .clip(RoundedCornerShape(110.dp))
+                .background(PremiumAccent.copy(alpha = 0.10f))
+        )
+        Box(
+            modifier = Modifier
+                .offset(x = 228.dp + driftTwo.dp, y = 18.dp)
+                .size(160.dp)
+                .clip(RoundedCornerShape(80.dp))
+                .background(PremiumGold.copy(alpha = 0.14f))
+        )
+        Box(
+            modifier = Modifier
+                .offset(x = 248.dp - driftOne.dp, y = 520.dp)
+                .size(190.dp)
+                .clip(RoundedCornerShape(95.dp))
+                .background(PremiumCard.copy(alpha = 0.42f))
+        )
+
+        content()
     }
 }
 
@@ -573,11 +665,11 @@ private fun VehicleListScreen(
                     text = "Remka",
                     fontSize = 30.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A)
+                    color = PremiumInk
                 )
                 Text(
                     text = "Транспорт и история работ",
-                    color = Color(0xFF64748B)
+                    color = PremiumMuted
                 )
             }
 
@@ -654,11 +746,11 @@ private fun AddChoiceScreen(
                     text = "Добавить",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A)
+                    color = PremiumInk
                 )
                 Text(
                     text = "Выбери, что создаём",
-                    color = Color(0xFF64748B)
+                    color = PremiumMuted
                 )
             }
 
@@ -692,8 +784,8 @@ private fun ActionCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = PremiumCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -702,11 +794,11 @@ private fun ActionCard(
             Text(
                 text = title,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF0F172A)
+                color = PremiumInk
             )
             Text(
                 text = subtitle,
-                color = Color(0xFF64748B),
+                color = PremiumMuted,
                 fontSize = 13.sp
             )
         }
@@ -739,11 +831,11 @@ private fun FolderFormScreen(
                         text = if (folderToEdit == null) "Новая папка" else "Переименовать папку",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
                     Text(
                         text = "Папки помогают не смешивать технику",
-                        color = Color(0xFF64748B)
+                        color = PremiumMuted
                     )
                 }
 
@@ -799,11 +891,11 @@ private fun FolderDetailsScreen(
                         text = folder.name,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
                     Text(
                         text = if (folder.isPinned) "Закреплена" else "Папка техники",
-                        color = Color(0xFF64748B)
+                        color = PremiumMuted
                     )
                 }
 
@@ -848,37 +940,57 @@ private fun FolderCard(
             )
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = PremiumCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 14.dp)
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(PremiumGoldSoft, PremiumAccentSoft)
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(PremiumAccent.copy(alpha = 0.88f))
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
                     Text(
                         text = if (folder.isPinned) "${folder.name} *" else folder.name,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
                     Text(
                         text = "$vehicleCount ед. техники",
-                        color = Color(0xFF64748B),
+                        color = PremiumMuted,
                         fontSize = 13.sp
                     )
                 }
 
                 Text(
-                    text = ">",
-                    color = Color(0xFF64748B),
+                    text = "›",
+                    color = PremiumMuted,
                     fontSize = 18.sp
                 )
             }
@@ -986,11 +1098,11 @@ private fun JournalScreen(
                         text = "Журнал",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
                     Text(
                         text = "Что делали по датам",
-                        color = Color(0xFF64748B)
+                        color = PremiumMuted
                     )
                 }
 
@@ -1004,8 +1116,8 @@ private fun JournalScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                colors = CardDefaults.cardColors(containerColor = PremiumCard),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -1014,7 +1126,7 @@ private fun JournalScreen(
                     Text(
                         text = "Период",
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
 
                     Row(
@@ -1084,8 +1196,8 @@ private fun JournalCard(entry: JournalEntry) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = PremiumCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1094,16 +1206,16 @@ private fun JournalCard(entry: JournalEntry) {
             Text(
                 text = entry.title,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF0F172A)
+                color = PremiumInk
             )
             Text(
                 text = "${entry.date} · ${entry.vehicleName} · ${entry.type}",
-                color = Color(0xFF64748B),
+                color = PremiumMuted,
                 fontSize = 13.sp
             )
             Text(
                 text = entry.details,
-                color = Color(0xFF334155)
+                color = PremiumInk
             )
         }
     }
@@ -1156,11 +1268,11 @@ private fun AddVehicleScreen(
                         text = if (vehicleToEdit == null) "Новый транспорт" else "Изменить транспорт",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
                     Text(
                         text = "Заполни основные данные",
-                        color = Color(0xFF64748B)
+                        color = PremiumMuted
                     )
                 }
 
@@ -1379,11 +1491,11 @@ private fun AddEventScreen(
                         text = if (eventToEdit == null) "Новое событие" else "Изменить событие",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
                     Text(
                         text = vehicle.name,
-                        color = Color(0xFF64748B)
+                        color = PremiumMuted
                     )
                 }
 
@@ -1551,11 +1663,11 @@ private fun AddPlanScreen(
                         text = if (planToEdit == null) "Новый план" else "Изменить план",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
                     Text(
                         text = vehicle.name,
-                        color = Color(0xFF64748B)
+                        color = PremiumMuted
                     )
                 }
 
@@ -1698,11 +1810,11 @@ private fun VehicleDetailsScreen(
                         text = vehicle.name,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
                     Text(
                         text = vehicle.type.displayName(),
-                        color = Color(0xFF64748B)
+                        color = PremiumMuted
                     )
                 }
 
@@ -1748,8 +1860,8 @@ private fun VehicleDetailsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                colors = CardDefaults.cardColors(containerColor = PremiumCard),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -1758,7 +1870,7 @@ private fun VehicleDetailsScreen(
                     Text(
                         text = "Сводка",
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF0F172A)
+                        color = PremiumInk
                     )
                     DetailLine("Модель", listOfNotNull(vehicle.manufacturer, vehicle.model).joinToString(" ").ifBlank { "не указана" })
                     DetailLine("Год", vehicle.year?.toString() ?: "не указан")
@@ -1840,8 +1952,8 @@ private fun VehicleCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = PremiumCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Row(
             modifier = Modifier
@@ -1860,19 +1972,19 @@ private fun VehicleCard(
                     text = vehicle.name,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF0F172A)
+                    color = PremiumInk
                 )
 
                 Text(
                     text = listOfNotNull(vehicle.manufacturer, vehicle.model, vehicle.year?.toString())
                         .joinToString(" ")
                         .ifBlank { "Модель не указана" },
-                    color = Color(0xFF475569)
+                    color = PremiumMuted
                 )
 
                 Text(
                     text = "Пробег: ${vehicle.currentMileage ?: "не указан"} км",
-                    color = Color(0xFF64748B),
+                    color = PremiumMuted,
                     fontSize = 13.sp
                 )
 
@@ -1881,14 +1993,14 @@ private fun VehicleCard(
                         folderName?.let { folder -> "Папка: $folder" },
                         vehicle.updatedAt.ifBlank { null }?.let { date -> "Изменено: $date" }
                     ).joinToString(" · ").ifBlank { "Без папки" },
-                    color = Color(0xFF64748B),
+                    color = PremiumMuted,
                     fontSize = 13.sp
                 )
             }
 
             Text(
                 text = vehicle.registrationNumber ?: "без номера",
-                color = Color(0xFF334155),
+                color = PremiumInk,
                 fontSize = 13.sp
             )
         }
@@ -1911,8 +2023,8 @@ private fun EventCard(
                 onEndToStart = { revealedAction = "delete" }
             ),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = PremiumCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1921,11 +2033,11 @@ private fun EventCard(
             Text(
                 text = event.title,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF0F172A)
+                color = PremiumInk
             )
             Text(
                 text = "${event.date} · ${event.type.displayName()}",
-                color = Color(0xFF64748B),
+                color = PremiumMuted,
                 fontSize = 13.sp
             )
             DetailLine("Пробег", event.mileage?.let { "$it км" } ?: "не указан")
@@ -1975,8 +2087,8 @@ private fun PlanCard(
                 onEndToStart = { revealedAction = "delete" }
             ),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = PremiumCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1985,11 +2097,11 @@ private fun PlanCard(
             Text(
                 text = plan.title,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF0F172A)
+                color = PremiumInk
             )
             Text(
                 text = "${plan.plannedDate} · ${plan.status.displayName()}",
-                color = Color(0xFF64748B),
+                color = PremiumMuted,
                 fontSize = 13.sp
             )
             DetailLine("Напомнить", plan.reminderDate ?: "не задано")
@@ -2057,7 +2169,7 @@ private fun SectionTitle(text: String) {
         text = text,
         fontSize = 20.sp,
         fontWeight = FontWeight.SemiBold,
-        color = Color(0xFF0F172A),
+        color = PremiumInk,
         modifier = Modifier.padding(top = 8.dp)
     )
 }
@@ -2066,7 +2178,7 @@ private fun SectionTitle(text: String) {
 private fun EmptyText(text: String) {
     Text(
         text = text,
-        color = Color(0xFF64748B),
+        color = PremiumMuted,
         modifier = Modifier.padding(vertical = 4.dp)
     )
 }
@@ -2079,11 +2191,11 @@ private fun DetailLine(label: String, value: String) {
     ) {
         Text(
             text = label,
-            color = Color(0xFF64748B)
+            color = PremiumMuted
         )
         Text(
             text = value,
-            color = Color(0xFF334155)
+            color = PremiumInk
         )
     }
 }
@@ -2208,13 +2320,17 @@ private fun VehicleIcon(type: VehicleType) {
         modifier = Modifier
             .size(48.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFE0F2FE)),
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(PremiumAccentSoft, PremiumGoldSoft)
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF0369A1)
+            color = PremiumAccent
         )
     }
 }
