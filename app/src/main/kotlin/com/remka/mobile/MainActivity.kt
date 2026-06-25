@@ -38,6 +38,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.remka.data.RemkaSnapshot
 import com.remka.domain.MaintenancePlan
 import com.remka.domain.MaintenancePlanStatus
 import com.remka.domain.Vehicle
@@ -81,57 +83,36 @@ private fun RemkaTheme(content: @Composable () -> Unit) {
 
 @Composable
 private fun RemkaApp() {
+    val context = LocalContext.current
+    val store = remember {
+        AndroidRemkaStore(context.filesDir.resolve("remka-data.json"))
+    }
+    val initialSnapshot = remember {
+        store.load() ?: demoSnapshot()
+    }
     var screen by remember { mutableStateOf(RemkaScreen.VehicleList) }
     var selectedVehicleId by remember { mutableStateOf<String?>(null) }
     val vehicles = remember {
-        mutableStateListOf(
-            Vehicle(
-                id = "demo-motorcycle",
-                type = VehicleType.MOTORCYCLE,
-                name = "Мой мотоцикл",
-                manufacturer = "Honda",
-                model = "CB400",
-                year = 2007,
-                registrationNumber = "A123BC",
-                currentMileage = 42000
-            )
-        )
+        mutableStateListOf<Vehicle>().apply {
+            addAll(initialSnapshot.vehicles)
+        }
     }
     val events = remember {
-        mutableStateListOf(
-            VehicleEvent(
-                id = "demo-event-1",
-                vehicleId = "demo-motorcycle",
-                type = VehicleEventType.INSTALLED_PART,
-                title = "Установил багажник",
-                date = "2026-06-24",
-                mileage = 42010,
-                cost = 8500.0,
-                shopName = "MotoParts",
-                comment = "Позже проверить крепления."
-            ),
-            VehicleEvent(
-                id = "demo-event-2",
-                vehicleId = "demo-motorcycle",
-                type = VehicleEventType.MAINTENANCE,
-                title = "Поменял масло",
-                date = "2026-06-24",
-                mileage = 42100,
-                cost = 3200.0,
-                shopName = "Oil Market",
-                comment = "Сливная пробка плохо закручивается."
-            )
-        )
+        mutableStateListOf<VehicleEvent>().apply {
+            addAll(initialSnapshot.events)
+        }
     }
     val plans = remember {
-        mutableStateListOf(
-            MaintenancePlan(
-                id = "demo-plan-1",
-                vehicleId = "demo-motorcycle",
-                title = "Поменять лампочку",
-                plannedDate = "2026-07-10",
-                reminderDate = "2026-07-09",
-                comment = "Перед покупкой проверить тип лампы."
+        mutableStateListOf<MaintenancePlan>().apply {
+            addAll(initialSnapshot.plans)
+        }
+    }
+    fun saveState() {
+        store.save(
+            RemkaSnapshot(
+                vehicles = vehicles.toList(),
+                events = events.toList(),
+                plans = plans.toList()
             )
         )
     }
@@ -150,6 +131,7 @@ private fun RemkaApp() {
             onBack = { screen = RemkaScreen.VehicleList },
             onSave = { vehicle ->
                 vehicles.add(vehicle)
+                saveState()
                 screen = RemkaScreen.VehicleList
             }
         )
@@ -171,6 +153,7 @@ private fun RemkaApp() {
                         val index = plans.indexOfFirst { existingPlan -> existingPlan.id == plan.id }
                         if (index != -1) {
                             plans[index] = plan.copy(status = status)
+                            saveState()
                         }
                     }
                 )
@@ -188,6 +171,7 @@ private fun RemkaApp() {
                     onBack = { screen = RemkaScreen.VehicleDetails },
                     onSave = { event ->
                         events.add(event)
+                        saveState()
                         screen = RemkaScreen.VehicleDetails
                     }
                 )
@@ -205,6 +189,7 @@ private fun RemkaApp() {
                     onBack = { screen = RemkaScreen.VehicleDetails },
                     onSave = { plan ->
                         plans.add(plan)
+                        saveState()
                         screen = RemkaScreen.VehicleDetails
                     }
                 )
@@ -1096,6 +1081,57 @@ private fun MaintenancePlanStatus.displayName(): String =
         MaintenancePlanStatus.DONE -> "Выполнен"
         MaintenancePlanStatus.CANCELLED -> "Отменён"
     }
+
+private fun demoSnapshot(): RemkaSnapshot {
+    val motorcycle = Vehicle(
+        id = "demo-motorcycle",
+        type = VehicleType.MOTORCYCLE,
+        name = "Мой мотоцикл",
+        manufacturer = "Honda",
+        model = "CB400",
+        year = 2007,
+        registrationNumber = "A123BC",
+        currentMileage = 42000
+    )
+
+    return RemkaSnapshot(
+        vehicles = listOf(motorcycle),
+        events = listOf(
+            VehicleEvent(
+                id = "demo-event-1",
+                vehicleId = motorcycle.id,
+                type = VehicleEventType.INSTALLED_PART,
+                title = "Установил багажник",
+                date = "2026-06-24",
+                mileage = 42010,
+                cost = 8500.0,
+                shopName = "MotoParts",
+                comment = "Позже проверить крепления."
+            ),
+            VehicleEvent(
+                id = "demo-event-2",
+                vehicleId = motorcycle.id,
+                type = VehicleEventType.MAINTENANCE,
+                title = "Поменял масло",
+                date = "2026-06-24",
+                mileage = 42100,
+                cost = 3200.0,
+                shopName = "Oil Market",
+                comment = "Сливная пробка плохо закручивается."
+            )
+        ),
+        plans = listOf(
+            MaintenancePlan(
+                id = "demo-plan-1",
+                vehicleId = motorcycle.id,
+                title = "Поменять лампочку",
+                plannedDate = "2026-07-10",
+                reminderDate = "2026-07-09",
+                comment = "Перед покупкой проверить тип лампы."
+            )
+        )
+    )
+}
 
 private fun String.onlyDigits(): String =
     filter { char -> char.isDigit() }
