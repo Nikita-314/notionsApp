@@ -10,7 +10,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,7 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -68,6 +67,8 @@ import com.remka.domain.VehicleEvent
 import com.remka.domain.VehicleEventType
 import com.remka.domain.VehicleFolder
 import com.remka.domain.VehicleType
+import me.saket.swipe.SwipeAction
+import me.saket.swipe.SwipeableActionsBox
 import java.time.LocalDate
 import java.util.UUID
 
@@ -591,27 +592,59 @@ private enum class RemkaScreen {
     EditPlan
 }
 
-private fun Modifier.revealActionsOnSwipe(
-    onStartToEnd: () -> Unit,
-    onEndToStart: () -> Unit
-): Modifier =
-    pointerInput(Unit) {
-        var dragTotal = 0f
+@Composable
+private fun PremiumSwipeActions(
+    startLabel: String,
+    endLabel: String,
+    onStartSwipe: () -> Unit,
+    onEndSwipe: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val startAction = SwipeAction(
+        icon = { FishEyeActionLabel(text = startLabel, color = PremiumAccent) },
+        background = PremiumAccentSoft,
+        onSwipe = onStartSwipe
+    )
+    val endAction = SwipeAction(
+        icon = { FishEyeActionLabel(text = endLabel, color = PremiumDanger) },
+        background = PremiumGoldSoft,
+        onSwipe = onEndSwipe
+    )
 
-        detectHorizontalDragGestures(
-            onDragStart = {
-                dragTotal = 0f
-            },
-            onDragEnd = {
-                when {
-                    dragTotal > 48f -> onStartToEnd()
-                    dragTotal < -48f -> onEndToStart()
-                }
-            }
-        ) { _, dragAmount ->
-            dragTotal += dragAmount
-        }
+    SwipeableActionsBox(
+        startActions = listOf(startAction),
+        endActions = listOf(endAction)
+    ) {
+        content()
     }
+}
+
+@Composable
+private fun FishEyeActionLabel(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = 1.12f
+                scaleY = 1.08f
+                shadowElevation = 10f
+            }
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(Color.White.copy(alpha = 0.88f), color.copy(alpha = 0.20f))
+                )
+            )
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = color,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp
+        )
+    }
+}
 
 @Composable
 private fun ConfirmDeleteDialog(
@@ -931,22 +964,24 @@ private fun FolderCard(
     onTogglePinClick: () -> Unit
 ) {
     var revealedAction by remember { mutableStateOf<String?>(null) }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .revealActionsOnSwipe(
-                onStartToEnd = { revealedAction = "manage" },
-                onEndToStart = { revealedAction = "delete" }
-            )
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = PremiumCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    PremiumSwipeActions(
+        startLabel = "Ещё",
+        endLabel = "Удалить",
+        onStartSwipe = { revealedAction = "manage" },
+        onEndSwipe = onDeleteClick
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = PremiumCard),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1022,20 +1057,11 @@ private fun FolderCard(
                 }
             }
 
-            if (revealedAction == "delete") {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = {
-                        revealedAction = null
-                        onDeleteClick()
-                    }
-                ) {
-                    Text("Удалить папку")
-                }
-            }
         }
     }
 }
+}
+
 
 @Composable
 private fun JournalScreen(
@@ -2014,58 +2040,35 @@ private fun EventCard(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
-    var revealedAction by remember { mutableStateOf<String?>(null) }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .revealActionsOnSwipe(
-                onStartToEnd = { revealedAction = "edit" },
-                onEndToStart = { revealedAction = "delete" }
-            ),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = PremiumCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    PremiumSwipeActions(
+        startLabel = "Изменить",
+        endLabel = "Удалить",
+        onStartSwipe = onEditClick,
+        onEndSwipe = onDeleteClick
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = PremiumCard),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Text(
-                text = event.title,
-                fontWeight = FontWeight.SemiBold,
-                color = PremiumInk
-            )
-            Text(
-                text = "${event.date} · ${event.type.displayName()}",
-                color = PremiumMuted,
-                fontSize = 13.sp
-            )
-            DetailLine("Пробег", event.mileage?.let { "$it км" } ?: "не указан")
-            DetailLine("Стоимость", event.cost?.let { "$it" } ?: "не указана")
-            DetailLine("Комментарий", event.comment ?: "нет")
-
-            if (revealedAction == "edit") {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = {
-                        revealedAction = null
-                        onEditClick()
-                    }
-                ) {
-                    Text("Изменить")
-                }
-            }
-
-            if (revealedAction == "delete") {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = {
-                        revealedAction = null
-                        onDeleteClick()
-                    }
-                ) {
-                    Text("Удалить")
-                }
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = event.title,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PremiumInk
+                )
+                Text(
+                    text = "${event.date} · ${event.type.displayName()}",
+                    color = PremiumMuted,
+                    fontSize = 13.sp
+                )
+                DetailLine("Пробег", event.mileage?.let { "$it км" } ?: "не указан")
+                DetailLine("Стоимость", event.cost?.let { "$it" } ?: "не указана")
+                DetailLine("Комментарий", event.comment ?: "нет")
             }
         }
     }
@@ -2078,85 +2081,62 @@ private fun PlanCard(
     onDeleteClick: () -> Unit,
     onStatusChange: (MaintenancePlanStatus) -> Unit
 ) {
-    var revealedAction by remember { mutableStateOf<String?>(null) }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .revealActionsOnSwipe(
-                onStartToEnd = { revealedAction = "edit" },
-                onEndToStart = { revealedAction = "delete" }
-            ),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = PremiumCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    PremiumSwipeActions(
+        startLabel = "Изменить",
+        endLabel = "Удалить",
+        onStartSwipe = onEditClick,
+        onEndSwipe = onDeleteClick
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = PremiumCard),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Text(
-                text = plan.title,
-                fontWeight = FontWeight.SemiBold,
-                color = PremiumInk
-            )
-            Text(
-                text = "${plan.plannedDate} · ${plan.status.displayName()}",
-                color = PremiumMuted,
-                fontSize = 13.sp
-            )
-            DetailLine("Напомнить", plan.reminderDate ?: "не задано")
-            DetailLine("Пробег", plan.targetMileage?.let { "$it км" } ?: "не указан")
-            DetailLine("Комментарий", plan.comment ?: "нет")
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = plan.title,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PremiumInk
+                )
+                Text(
+                    text = "${plan.plannedDate} · ${plan.status.displayName()}",
+                    color = PremiumMuted,
+                    fontSize = 13.sp
+                )
+                DetailLine("Напомнить", plan.reminderDate ?: "не задано")
+                DetailLine("Пробег", plan.targetMileage?.let { "$it км" } ?: "не указан")
+                DetailLine("Комментарий", plan.comment ?: "нет")
 
-            if (revealedAction == "edit") {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = {
-                        revealedAction = null
-                        onEditClick()
-                    }
-                ) {
-                    Text("Изменить")
-                }
-            }
-
-            if (revealedAction == "delete") {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = {
-                        revealedAction = null
-                        onDeleteClick()
-                    }
-                ) {
-                    Text("Удалить")
-                }
-            }
-
-            if (plan.status == MaintenancePlanStatus.PLANNED) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onStatusChange(MaintenancePlanStatus.DONE) }
+                if (plan.status == MaintenancePlanStatus.PLANNED) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Выполнен")
-                    }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = { onStatusChange(MaintenancePlanStatus.DONE) }
+                        ) {
+                            Text("Выполнен")
+                        }
 
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = { onStatusChange(MaintenancePlanStatus.CANCELLED) }
+                        ) {
+                            Text("Отменить")
+                        }
+                    }
+                } else {
                     OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onStatusChange(MaintenancePlanStatus.CANCELLED) }
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onStatusChange(MaintenancePlanStatus.PLANNED) }
                     ) {
-                        Text("Отменить")
+                        Text("Вернуть в план")
                     }
-                }
-            } else {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { onStatusChange(MaintenancePlanStatus.PLANNED) }
-                ) {
-                    Text("Вернуть в план")
                 }
             }
         }
