@@ -76,6 +76,7 @@ import com.remka.domain.VehicleType
 import com.remka.domain.WorkAssignment
 import me.saket.swipe.SwipeAction
 import me.saket.swipe.SwipeableActionsBox
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.util.UUID
 
@@ -744,20 +745,41 @@ private fun RemkaApp() {
         RemkaScreen.Profile -> ProfileScreen(
             currentUser = currentUser,
             onBack = { screen = RemkaScreen.VehicleList },
-            onSignIn = { email ->
-                val user = userAccountFromEmail(email)
-                val existingUser = knownUsers.firstOrNull { existing -> existing.id == user.id }
-                val signedInUser = user.copy(passwordHash = existingUser?.passwordHash)
-                currentUser = signedInUser
-                if (existingUser == null) {
-                    knownUsers.add(signedInUser)
+            onSignIn = { email, password ->
+                val normalizedEmail = email.normalizedEmail()
+                val existingUser = knownUsers.firstOrNull { existing ->
+                    existing.email.normalizedEmail() == normalizedEmail
                 }
-                saveState()
-                screen = RemkaScreen.VehicleList
+                when {
+                    existingUser == null -> "Аккаунт с таким email не найден"
+                    !existingUser.passwordMatches(password) -> "Неверный пароль"
+                    else -> {
+                        currentUser = existingUser
+                        saveState()
+                        screen = RemkaScreen.VehicleList
+                        null
+                    }
+                }
+            },
+            onRegister = { email, password ->
+                val normalizedEmail = email.normalizedEmail()
+                val existingUser = knownUsers.firstOrNull { existing ->
+                    existing.email.normalizedEmail() == normalizedEmail
+                }
+                if (existingUser != null) {
+                    "Аккаунт с таким email уже есть"
+                } else {
+                    val user = userAccountFromEmail(normalizedEmail, password)
+                    currentUser = user
+                    knownUsers.add(user)
+                    saveState()
+                    screen = RemkaScreen.VehicleList
+                    null
+                }
             },
             onChangePassword = { password ->
                 currentUser?.let { user ->
-                    val updatedUser = user.copy(passwordHash = passwordFingerprint(password))
+                    val updatedUser = user.copy(passwordHash = passwordFingerprint(password, user.email))
                     currentUser = updatedUser
                     val index = knownUsers.indexOfFirst { existingUser -> existingUser.id == updatedUser.id }
                     if (index == -1) {
@@ -970,14 +992,19 @@ private fun ConfirmDeleteDialog(
 private fun ProfileScreen(
     currentUser: UserAccount?,
     onBack: () -> Unit,
-    onSignIn: (String) -> Unit,
+    onSignIn: (String, String) -> String?,
+    onRegister: (String, String) -> String?,
     onChangePassword: (String) -> Unit,
     onSignOut: () -> Unit
 ) {
     var email by remember { mutableStateOf(currentUser?.email ?: "") }
+    var password by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var repeatedPassword by remember { mutableStateOf("") }
-    val canSignIn = email.contains("@") && email.substringAfter("@").contains(".")
+    var authMessage by remember { mutableStateOf<String?>(null) }
+    val canSubmitAuth = email.contains("@") &&
+        email.substringAfter("@").contains(".") &&
+        password.length >= 6
     val canChangePassword = currentUser != null &&
         newPassword.length >= 6 &&
         newPassword == repeatedPassword
@@ -1036,6 +1063,13 @@ private fun ProfileScreen(
                         color = PremiumMuted,
                         fontSize = 13.sp
                     )
+                    if (currentUser != null) {
+                        Text(
+                            text = "Этот ID нужен, чтобы открыть доступ к папке или конкретной технике.",
+                            color = PremiumMuted,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         }
@@ -1051,12 +1085,64 @@ private fun ProfileScreen(
         }
 
         item {
-            Button(
+            OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = canSignIn,
-                onClick = { onSignIn(email) }
+                value = password,
+                onValueChange = {
+                    password = it
+                    authMessage = null
+                },
+                label = { Text("Пароль") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                supportingText = {
+                    if (password.isNotBlank() && password.length < 6) {
+                        Text("Минимум 6 символов")
+                    }
+                }
+            )
+        }
+
+        if (authMessage != null) {
+            item {
+                Text(
+                    text = authMessage.orEmpty(),
+                    color = PremiumDanger,
+                    fontSize = 13.sp
+                )
+            }
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(if (currentUser == null) "Войти" else "Обновить профиль")
+                Button(
+                    modifier = Modifier.weight(1f),
+                    enabled = canSubmitAuth,
+                    onClick = {
+                        authMessage = onSignIn(email, password)
+                        if (authMessage == null) {
+                            password = ""
+                        }
+                    }
+                ) {
+                    Text("Войти")
+                }
+
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    enabled = canSubmitAuth && currentUser == null,
+                    onClick = {
+                        authMessage = onRegister(email, password)
+                        if (authMessage == null) {
+                            password = ""
+                        }
+                    }
+                ) {
+                    Text("Создать")
+                }
             }
         }
 
@@ -2942,21 +3028,39 @@ private fun MaintenancePlanStatus.displayName(): String =
         MaintenancePlanStatus.CANCELLED -> "Отменён"
     }
 
-private fun userAccountFromEmail(email: String): UserAccount {
-    val normalizedEmail = email.trim().lowercase()
+private fun userAccountFromEmail(email: String, password: String): UserAccount {
+    val normalizedEmail = email.normalizedEmail()
     val baseId = normalizedEmail.substringBefore("@")
         .filter { char -> char.isLetterOrDigit() || char == '.' || char == '_' || char == '-' }
         .ifBlank { "user" }
-    val hash = normalizedEmail.hashCode().toString().replace("-", "m")
 
     return UserAccount(
-        id = "$baseId-$hash",
+        id = "usr-${UUID.randomUUID().toString().take(8)}",
         email = normalizedEmail,
-        displayName = baseId.replaceFirstChar { char -> char.uppercase() }
+        displayName = baseId.replaceFirstChar { char -> char.uppercase() },
+        passwordHash = passwordFingerprint(password, normalizedEmail)
     )
 }
 
-private fun passwordFingerprint(password: String): String =
+private fun String.normalizedEmail(): String =
+    trim().lowercase()
+
+private fun UserAccount.passwordMatches(password: String): Boolean {
+    val currentHash = passwordHash ?: return false
+    return currentHash == passwordFingerprint(password, email) ||
+        currentHash == legacyPasswordFingerprint(password)
+}
+
+private fun passwordFingerprint(password: String, email: String): String {
+    val bytes = MessageDigest.getInstance("SHA-256")
+        .digest("remka:${email.normalizedEmail()}:$password".encodeToByteArray())
+
+    return "sha256:" + bytes.joinToString(separator = "") { byte ->
+        "%02x".format(byte.toInt() and 0xff)
+    }
+}
+
+private fun legacyPasswordFingerprint(password: String): String =
     password.hashCode().toString().replace("-", "m")
 
 private fun String.toAssignments(): List<WorkAssignment> =
@@ -2987,7 +3091,8 @@ private fun demoSnapshot(): RemkaSnapshot {
     val demoUser = UserAccount(
         id = "nikita-demo",
         email = "nikita@example.com",
-        displayName = "Nikita"
+        displayName = "Nikita",
+        passwordHash = passwordFingerprint("123456", "nikita@example.com")
     )
     val rostovFolder = VehicleFolder(
         id = "demo-folder-rostov",
