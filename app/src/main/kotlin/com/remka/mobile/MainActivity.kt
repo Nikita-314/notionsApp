@@ -92,6 +92,8 @@ private fun RemkaApp() {
     }
     var screen by remember { mutableStateOf(RemkaScreen.VehicleList) }
     var selectedVehicleId by remember { mutableStateOf<String?>(null) }
+    var selectedEventId by remember { mutableStateOf<String?>(null) }
+    var selectedPlanId by remember { mutableStateOf<String?>(null) }
     val vehicles = remember {
         mutableStateListOf<Vehicle>().apply {
             addAll(initialSnapshot.vehicles)
@@ -124,10 +126,24 @@ private fun RemkaApp() {
             onVehicleClick = { vehicle ->
                 selectedVehicleId = vehicle.id
                 screen = RemkaScreen.VehicleDetails
+            },
+            onEditVehicleClick = { vehicle ->
+                selectedVehicleId = vehicle.id
+                screen = RemkaScreen.EditVehicle
+            },
+            onDeleteVehicleClick = { vehicle ->
+                vehicles.removeAll { existingVehicle -> existingVehicle.id == vehicle.id }
+                events.removeAll { event -> event.vehicleId == vehicle.id }
+                plans.removeAll { plan -> plan.vehicleId == vehicle.id }
+                if (selectedVehicleId == vehicle.id) {
+                    selectedVehicleId = null
+                }
+                saveState()
             }
         )
 
         RemkaScreen.AddVehicle -> AddVehicleScreen(
+            vehicleToEdit = null,
             onBack = { screen = RemkaScreen.VehicleList },
             onSave = { vehicle ->
                 vehicles.add(vehicle)
@@ -135,6 +151,27 @@ private fun RemkaApp() {
                 screen = RemkaScreen.VehicleList
             }
         )
+
+        RemkaScreen.EditVehicle -> {
+            val vehicleToEdit = vehicles.firstOrNull { vehicle -> vehicle.id == selectedVehicleId }
+
+            if (vehicleToEdit == null) {
+                screen = RemkaScreen.VehicleList
+            } else {
+                AddVehicleScreen(
+                    vehicleToEdit = vehicleToEdit,
+                    onBack = { screen = RemkaScreen.VehicleList },
+                    onSave = { vehicle ->
+                        val index = vehicles.indexOfFirst { existingVehicle -> existingVehicle.id == vehicle.id }
+                        if (index != -1) {
+                            vehicles[index] = vehicle
+                            saveState()
+                        }
+                        screen = RemkaScreen.VehicleList
+                    }
+                )
+            }
+        }
 
         RemkaScreen.VehicleDetails -> {
             val selectedVehicle = vehicles.firstOrNull { vehicle -> vehicle.id == selectedVehicleId }
@@ -149,6 +186,31 @@ private fun RemkaApp() {
                     onBack = { screen = RemkaScreen.VehicleList },
                     onAddEventClick = { screen = RemkaScreen.AddEvent },
                     onAddPlanClick = { screen = RemkaScreen.AddPlan },
+                    onEditVehicleClick = { screen = RemkaScreen.EditVehicle },
+                    onDeleteVehicleClick = {
+                        vehicles.removeAll { vehicle -> vehicle.id == selectedVehicle.id }
+                        events.removeAll { event -> event.vehicleId == selectedVehicle.id }
+                        plans.removeAll { plan -> plan.vehicleId == selectedVehicle.id }
+                        selectedVehicleId = null
+                        saveState()
+                        screen = RemkaScreen.VehicleList
+                    },
+                    onEditEventClick = { event ->
+                        selectedEventId = event.id
+                        screen = RemkaScreen.EditEvent
+                    },
+                    onDeleteEventClick = { event ->
+                        events.removeAll { existingEvent -> existingEvent.id == event.id }
+                        saveState()
+                    },
+                    onEditPlanClick = { plan ->
+                        selectedPlanId = plan.id
+                        screen = RemkaScreen.EditPlan
+                    },
+                    onDeletePlanClick = { plan ->
+                        plans.removeAll { existingPlan -> existingPlan.id == plan.id }
+                        saveState()
+                    },
                     onPlanStatusChange = { plan, status ->
                         val index = plans.indexOfFirst { existingPlan -> existingPlan.id == plan.id }
                         if (index != -1) {
@@ -168,10 +230,34 @@ private fun RemkaApp() {
             } else {
                 AddEventScreen(
                     vehicle = selectedVehicle,
+                    eventToEdit = null,
                     onBack = { screen = RemkaScreen.VehicleDetails },
                     onSave = { event ->
                         events.add(event)
                         saveState()
+                        screen = RemkaScreen.VehicleDetails
+                    }
+                )
+            }
+        }
+
+        RemkaScreen.EditEvent -> {
+            val selectedVehicle = vehicles.firstOrNull { vehicle -> vehicle.id == selectedVehicleId }
+            val eventToEdit = events.firstOrNull { event -> event.id == selectedEventId }
+
+            if (selectedVehicle == null || eventToEdit == null) {
+                screen = RemkaScreen.VehicleDetails
+            } else {
+                AddEventScreen(
+                    vehicle = selectedVehicle,
+                    eventToEdit = eventToEdit,
+                    onBack = { screen = RemkaScreen.VehicleDetails },
+                    onSave = { event ->
+                        val index = events.indexOfFirst { existingEvent -> existingEvent.id == event.id }
+                        if (index != -1) {
+                            events[index] = event
+                            saveState()
+                        }
                         screen = RemkaScreen.VehicleDetails
                     }
                 )
@@ -186,10 +272,34 @@ private fun RemkaApp() {
             } else {
                 AddPlanScreen(
                     vehicle = selectedVehicle,
+                    planToEdit = null,
                     onBack = { screen = RemkaScreen.VehicleDetails },
                     onSave = { plan ->
                         plans.add(plan)
                         saveState()
+                        screen = RemkaScreen.VehicleDetails
+                    }
+                )
+            }
+        }
+
+        RemkaScreen.EditPlan -> {
+            val selectedVehicle = vehicles.firstOrNull { vehicle -> vehicle.id == selectedVehicleId }
+            val planToEdit = plans.firstOrNull { plan -> plan.id == selectedPlanId }
+
+            if (selectedVehicle == null || planToEdit == null) {
+                screen = RemkaScreen.VehicleDetails
+            } else {
+                AddPlanScreen(
+                    vehicle = selectedVehicle,
+                    planToEdit = planToEdit,
+                    onBack = { screen = RemkaScreen.VehicleDetails },
+                    onSave = { plan ->
+                        val index = plans.indexOfFirst { existingPlan -> existingPlan.id == plan.id }
+                        if (index != -1) {
+                            plans[index] = plan
+                            saveState()
+                        }
                         screen = RemkaScreen.VehicleDetails
                     }
                 )
@@ -201,16 +311,21 @@ private fun RemkaApp() {
 private enum class RemkaScreen {
     VehicleList,
     AddVehicle,
+    EditVehicle,
     VehicleDetails,
     AddEvent,
-    AddPlan
+    EditEvent,
+    AddPlan,
+    EditPlan
 }
 
 @Composable
 private fun VehicleListScreen(
     vehicles: List<Vehicle>,
     onAddVehicleClick: () -> Unit,
-    onVehicleClick: (Vehicle) -> Unit
+    onVehicleClick: (Vehicle) -> Unit,
+    onEditVehicleClick: (Vehicle) -> Unit,
+    onDeleteVehicleClick: (Vehicle) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -250,7 +365,9 @@ private fun VehicleListScreen(
             items(vehicles, key = { vehicle -> vehicle.id }) { vehicle ->
                 VehicleCard(
                     vehicle = vehicle,
-                    onClick = { onVehicleClick(vehicle) }
+                    onClick = { onVehicleClick(vehicle) },
+                    onEditClick = { onEditVehicleClick(vehicle) },
+                    onDeleteClick = { onDeleteVehicleClick(vehicle) }
                 )
             }
         }
@@ -260,16 +377,17 @@ private fun VehicleListScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddVehicleScreen(
+    vehicleToEdit: Vehicle?,
     onBack: () -> Unit,
     onSave: (Vehicle) -> Unit
 ) {
-    var type by remember { mutableStateOf(VehicleType.MOTORCYCLE) }
-    var name by remember { mutableStateOf("") }
-    var manufacturer by remember { mutableStateOf("") }
-    var model by remember { mutableStateOf("") }
-    var year by remember { mutableStateOf("") }
-    var registrationNumber by remember { mutableStateOf("") }
-    var mileage by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf(vehicleToEdit?.type ?: VehicleType.MOTORCYCLE) }
+    var name by remember { mutableStateOf(vehicleToEdit?.name ?: "") }
+    var manufacturer by remember { mutableStateOf(vehicleToEdit?.manufacturer ?: "") }
+    var model by remember { mutableStateOf(vehicleToEdit?.model ?: "") }
+    var year by remember { mutableStateOf(vehicleToEdit?.year?.toString() ?: "") }
+    var registrationNumber by remember { mutableStateOf(vehicleToEdit?.registrationNumber ?: "") }
+    var mileage by remember { mutableStateOf(vehicleToEdit?.currentMileage?.toString() ?: "") }
     var typeMenuExpanded by remember { mutableStateOf(false) }
 
     val canSave = name.isNotBlank()
@@ -289,7 +407,7 @@ private fun AddVehicleScreen(
             ) {
                 Column {
                     Text(
-                        text = "Новый транспорт",
+                        text = if (vehicleToEdit == null) "Новый транспорт" else "Изменить транспорт",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0F172A)
@@ -415,7 +533,7 @@ private fun AddVehicleScreen(
                 onClick = {
                     onSave(
                         Vehicle(
-                            id = UUID.randomUUID().toString(),
+                            id = vehicleToEdit?.id ?: UUID.randomUUID().toString(),
                             type = type,
                             name = name.trim(),
                             manufacturer = manufacturer.trim().ifBlank { null },
@@ -437,16 +555,17 @@ private fun AddVehicleScreen(
 @Composable
 private fun AddEventScreen(
     vehicle: Vehicle,
+    eventToEdit: VehicleEvent?,
     onBack: () -> Unit,
     onSave: (VehicleEvent) -> Unit
 ) {
-    var type by remember { mutableStateOf(VehicleEventType.MAINTENANCE) }
-    var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("2026-06-24") }
-    var mileage by remember { mutableStateOf("") }
-    var cost by remember { mutableStateOf("") }
-    var shopName by remember { mutableStateOf("") }
-    var comment by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf(eventToEdit?.type ?: VehicleEventType.MAINTENANCE) }
+    var title by remember { mutableStateOf(eventToEdit?.title ?: "") }
+    var date by remember { mutableStateOf(eventToEdit?.date ?: "2026-06-24") }
+    var mileage by remember { mutableStateOf(eventToEdit?.mileage?.toString() ?: "") }
+    var cost by remember { mutableStateOf(eventToEdit?.cost?.toString() ?: "") }
+    var shopName by remember { mutableStateOf(eventToEdit?.shopName ?: "") }
+    var comment by remember { mutableStateOf(eventToEdit?.comment ?: "") }
     var typeMenuExpanded by remember { mutableStateOf(false) }
 
     val canSave = title.isNotBlank() && date.isNotBlank()
@@ -466,7 +585,7 @@ private fun AddEventScreen(
             ) {
                 Column {
                     Text(
-                        text = "Новое событие",
+                        text = if (eventToEdit == null) "Новое событие" else "Изменить событие",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0F172A)
@@ -587,7 +706,7 @@ private fun AddEventScreen(
                 onClick = {
                     onSave(
                         VehicleEvent(
-                            id = UUID.randomUUID().toString(),
+                            id = eventToEdit?.id ?: UUID.randomUUID().toString(),
                             vehicleId = vehicle.id,
                             type = type,
                             title = title.trim(),
@@ -609,16 +728,17 @@ private fun AddEventScreen(
 @Composable
 private fun AddPlanScreen(
     vehicle: Vehicle,
+    planToEdit: MaintenancePlan?,
     onBack: () -> Unit,
     onSave: (MaintenancePlan) -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var plannedDate by remember { mutableStateOf("2026-07-10") }
-    var reminderDate by remember { mutableStateOf("") }
-    var targetMileage by remember { mutableStateOf("") }
-    var placeToBuy by remember { mutableStateOf("") }
-    var responsiblePerson by remember { mutableStateOf("") }
-    var comment by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf(planToEdit?.title ?: "") }
+    var plannedDate by remember { mutableStateOf(planToEdit?.plannedDate ?: "2026-07-10") }
+    var reminderDate by remember { mutableStateOf(planToEdit?.reminderDate ?: "") }
+    var targetMileage by remember { mutableStateOf(planToEdit?.targetMileage?.toString() ?: "") }
+    var placeToBuy by remember { mutableStateOf(planToEdit?.placeToBuy ?: "") }
+    var responsiblePerson by remember { mutableStateOf(planToEdit?.responsiblePerson ?: "") }
+    var comment by remember { mutableStateOf(planToEdit?.comment ?: "") }
 
     val canSave = title.isNotBlank() && plannedDate.isNotBlank()
 
@@ -637,7 +757,7 @@ private fun AddPlanScreen(
             ) {
                 Column {
                     Text(
-                        text = "Новый план",
+                        text = if (planToEdit == null) "Новый план" else "Изменить план",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0F172A)
@@ -732,7 +852,7 @@ private fun AddPlanScreen(
                 onClick = {
                     onSave(
                         MaintenancePlan(
-                            id = UUID.randomUUID().toString(),
+                            id = planToEdit?.id ?: UUID.randomUUID().toString(),
                             vehicleId = vehicle.id,
                             title = title.trim(),
                             plannedDate = plannedDate.trim(),
@@ -740,7 +860,8 @@ private fun AddPlanScreen(
                             targetMileage = targetMileage.toLongOrNull(),
                             placeToBuy = placeToBuy.trim().ifBlank { null },
                             responsiblePerson = responsiblePerson.trim().ifBlank { null },
-                            comment = comment.trim().ifBlank { null }
+                            comment = comment.trim().ifBlank { null },
+                            status = planToEdit?.status ?: MaintenancePlanStatus.PLANNED
                         )
                     )
                 }
@@ -759,6 +880,12 @@ private fun VehicleDetailsScreen(
     onBack: () -> Unit,
     onAddEventClick: () -> Unit,
     onAddPlanClick: () -> Unit,
+    onEditVehicleClick: () -> Unit,
+    onDeleteVehicleClick: () -> Unit,
+    onEditEventClick: (VehicleEvent) -> Unit,
+    onDeleteEventClick: (VehicleEvent) -> Unit,
+    onEditPlanClick: (MaintenancePlan) -> Unit,
+    onDeletePlanClick: (MaintenancePlan) -> Unit,
     onPlanStatusChange: (MaintenancePlan, MaintenancePlanStatus) -> Unit
 ) {
     LazyColumn(
@@ -788,6 +915,27 @@ private fun VehicleDetailsScreen(
 
                 OutlinedButton(onClick = onBack) {
                     Text("Назад")
+                }
+            }
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onEditVehicleClick
+                ) {
+                    Text("Изменить")
+                }
+
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onDeleteVehicleClick
+                ) {
+                    Text("Удалить")
                 }
             }
         }
@@ -837,7 +985,11 @@ private fun VehicleDetailsScreen(
             }
         } else {
             items(events, key = { event -> event.id }) { event ->
-                EventCard(event = event)
+                EventCard(
+                    event = event,
+                    onEditClick = { onEditEventClick(event) },
+                    onDeleteClick = { onDeleteEventClick(event) }
+                )
             }
         }
 
@@ -864,6 +1016,8 @@ private fun VehicleDetailsScreen(
             items(plans, key = { plan -> plan.id }) { plan ->
                 PlanCard(
                     plan = plan,
+                    onEditClick = { onEditPlanClick(plan) },
+                    onDeleteClick = { onDeletePlanClick(plan) },
                     onStatusChange = { status -> onPlanStatusChange(plan, status) }
                 )
             }
@@ -874,7 +1028,9 @@ private fun VehicleDetailsScreen(
 @Composable
 private fun VehicleCard(
     vehicle: Vehicle,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -924,11 +1080,36 @@ private fun VehicleCard(
                 fontSize = 13.sp
             )
         }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = onEditClick
+            ) {
+                Text("Изменить")
+            }
+
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = onDeleteClick
+            ) {
+                Text("Удалить")
+            }
+        }
     }
 }
 
 @Composable
-private fun EventCard(event: VehicleEvent) {
+private fun EventCard(
+    event: VehicleEvent,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
@@ -952,6 +1133,25 @@ private fun EventCard(event: VehicleEvent) {
             DetailLine("Пробег", event.mileage?.let { "$it км" } ?: "не указан")
             DetailLine("Стоимость", event.cost?.let { "$it" } ?: "не указана")
             DetailLine("Комментарий", event.comment ?: "нет")
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onEditClick
+                ) {
+                    Text("Изменить")
+                }
+
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onDeleteClick
+                ) {
+                    Text("Удалить")
+                }
+            }
         }
     }
 }
@@ -959,6 +1159,8 @@ private fun EventCard(event: VehicleEvent) {
 @Composable
 private fun PlanCard(
     plan: MaintenancePlan,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
     onStatusChange: (MaintenancePlanStatus) -> Unit
 ) {
     Card(
@@ -984,6 +1186,25 @@ private fun PlanCard(
             DetailLine("Напомнить", plan.reminderDate ?: "не задано")
             DetailLine("Пробег", plan.targetMileage?.let { "$it км" } ?: "не указан")
             DetailLine("Комментарий", plan.comment ?: "нет")
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onEditClick
+                ) {
+                    Text("Изменить")
+                }
+
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onDeleteClick
+                ) {
+                    Text("Удалить")
+                }
+            }
 
             if (plan.status == MaintenancePlanStatus.PLANNED) {
                 Row(
