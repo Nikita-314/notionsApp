@@ -3,7 +3,7 @@ package com.remka.mobile
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import com.remka.data.RemkaSnapshot
+import com.remka.data.JournalSnapshot
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -19,14 +19,14 @@ import javax.crypto.spec.GCMParameterSpec
 class AndroidRemkaStore(
     private val file: File
 ) {
-    private val keyAlias = "remka_local_data_key_v1"
-    private val encryptedPrefix = "REMKA_ENCRYPTED_V1"
+    private val keyAlias = "notions_local_data_key_v1"
+    private val encryptedPrefix = "NOTIONS_ENCRYPTED_V1"
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
     }
 
-    fun load(): RemkaSnapshot? {
+    fun load(): JournalSnapshot? {
         if (!file.exists()) {
             return null
         }
@@ -54,17 +54,17 @@ class AndroidRemkaStore(
             val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(GCM_TAG_SIZE_BITS, iv))
 
-            return json.decodeFromString<RemkaSnapshot>(
+            return json.decodeFromString<JournalSnapshot>(
                 cipher.doFinal(cipherText).decodeToString()
             )
         }
 
-        val snapshot = json.decodeFromString<RemkaSnapshot>(content)
+        val snapshot = json.decodeFromString<JournalSnapshot>(content)
         save(snapshot)
         return snapshot
     }
 
-    fun save(snapshot: RemkaSnapshot) {
+    fun save(snapshot: JournalSnapshot) {
         file.parentFile?.mkdirs()
         val tempFile = file.resolveSibling("${file.name}.tmp")
         tempFile.writeText(encryptSnapshot(snapshot))
@@ -85,7 +85,7 @@ class AndroidRemkaStore(
         }
     }
 
-    fun encryptSnapshot(snapshot: RemkaSnapshot): String {
+    fun encryptSnapshot(snapshot: JournalSnapshot): String {
         val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
         val cipherText = cipher.doFinal(json.encodeToString(snapshot).encodeToByteArray())

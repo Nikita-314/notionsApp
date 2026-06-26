@@ -6,6 +6,6 @@ plugins {
 }
 
 allprojects {
-    group = "com.remka"
+    group = "com.nikita.notionsapp"
     version = "1.0-SNAPSHOT"
 }

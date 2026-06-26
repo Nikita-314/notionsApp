@@ -18,7 +18,7 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-rootProject.name = "remka"
+rootProject.name = "notionsApp"
 
 include(":core")
 include(":console")

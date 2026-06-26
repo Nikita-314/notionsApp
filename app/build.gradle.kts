@@ -22,7 +22,7 @@ android {
     buildToolsVersion = "36.1.0"
 
     defaultConfig {
-        applicationId = "com.remka.mobile"
+        applicationId = "com.nikita.notionsapp"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
