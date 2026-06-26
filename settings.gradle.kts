@@ -21,6 +21,4 @@ plugins {
 rootProject.name = "notionsApp"
 
 include(":core")
-include(":console")
 include(":app")
-include(":server")

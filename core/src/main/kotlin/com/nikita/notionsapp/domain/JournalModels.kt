@@ -1,4 +1,4 @@
-package com.remka.domain
+package com.nikita.notionsapp.domain
 
 import kotlinx.serialization.Serializable
 

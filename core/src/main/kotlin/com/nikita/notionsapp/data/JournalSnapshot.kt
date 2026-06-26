@@ -1,14 +1,14 @@
-package com.remka.data
+package com.nikita.notionsapp.data
 
-import com.remka.domain.AppUserPreferences
-import com.remka.domain.ChecklistItem
-import com.remka.domain.JournalAttachment
-import com.remka.domain.JournalBook
-import com.remka.domain.JournalEntry
-import com.remka.domain.RecurrenceRule
-import com.remka.domain.ReminderRule
-import com.remka.domain.SavedGeofencePlace
-import com.remka.domain.SavedWifiPlace
+import com.nikita.notionsapp.domain.AppUserPreferences
+import com.nikita.notionsapp.domain.ChecklistItem
+import com.nikita.notionsapp.domain.JournalAttachment
+import com.nikita.notionsapp.domain.JournalBook
+import com.nikita.notionsapp.domain.JournalEntry
+import com.nikita.notionsapp.domain.RecurrenceRule
+import com.nikita.notionsapp.domain.ReminderRule
+import com.nikita.notionsapp.domain.SavedGeofencePlace
+import com.nikita.notionsapp.domain.SavedWifiPlace
 import kotlinx.serialization.Serializable
 
 @Serializable

@@ -1,9 +1,9 @@
-package com.remka.mobile
+package com.nikita.notionsapp
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import com.remka.data.JournalSnapshot
+import com.nikita.notionsapp.data.JournalSnapshot
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -16,7 +16,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-class AndroidRemkaStore(
+class AndroidNotionsStore(
     private val file: File
 ) {
     private val keyAlias = "notions_local_data_key_v1"

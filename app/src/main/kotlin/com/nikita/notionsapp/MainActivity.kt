@@ -1,4 +1,4 @@
-package com.remka.mobile
+package com.nikita.notionsapp
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -60,16 +60,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.remka.data.JournalSnapshot
-import com.remka.domain.AppUserPreferences
-import com.remka.domain.ChecklistItem
-import com.remka.domain.DayCompletedListMode
-import com.remka.domain.DayListDensity
-import com.remka.domain.JournalBook
-import com.remka.domain.JournalEntry
-import com.remka.domain.JournalEntryVisualStatus
-import com.remka.domain.ReminderRule
-import com.remka.domain.ReminderRuleKind
+import com.nikita.notionsapp.data.JournalSnapshot
+import com.nikita.notionsapp.domain.AppUserPreferences
+import com.nikita.notionsapp.domain.ChecklistItem
+import com.nikita.notionsapp.domain.DayCompletedListMode
+import com.nikita.notionsapp.domain.DayListDensity
+import com.nikita.notionsapp.domain.JournalBook
+import com.nikita.notionsapp.domain.JournalEntry
+import com.nikita.notionsapp.domain.JournalEntryVisualStatus
+import com.nikita.notionsapp.domain.ReminderRule
+import com.nikita.notionsapp.domain.ReminderRuleKind
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
@@ -123,7 +123,7 @@ private fun NotionsTheme(content: @Composable () -> Unit) {
 private fun JournalApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val store = remember {
-        AndroidRemkaStore(context.filesDir.resolve("notions-journal.json"))
+        AndroidNotionsStore(context.filesDir.resolve("notions-journal.json"))
     }
     val loaded = remember { store.load() ?: demoJournalSnapshot() }
     val books = remember { mutableStateListOf<JournalBook>().apply { addAll(loaded.books) } }
