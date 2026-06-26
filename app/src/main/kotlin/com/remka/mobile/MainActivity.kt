@@ -1019,10 +1019,10 @@ private fun ProfileScreen(
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Профиль",
                         fontSize = 28.sp,
@@ -1036,7 +1036,7 @@ private fun ProfileScreen(
                 }
 
                 OutlinedButton(onClick = onBack) {
-                    Text("Назад")
+                    Text("←")
                 }
             }
         }
@@ -1396,7 +1396,7 @@ private fun VehicleListScreen(
                     }
 
                     OutlinedButton(onClick = onJournalClick) {
-                        Text("Ж")
+                        Text("📓")
                     }
 
                     Button(onClick = onAddClick) {
